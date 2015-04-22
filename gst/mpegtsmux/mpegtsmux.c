@@ -955,6 +955,21 @@ mpegtsmux_create_streams (MpegTsMux * mux)
       } else {
         ts_data->prog_id = DEFAULT_PROG_ID;
       }
+
+      if (!ts_data->pid) {
+        gint pid = -1;
+
+        name = GST_PAD_NAME (c_data->pad);
+        if (name != NULL && sscanf (name, "sink_%d", &pid) == 1) {
+          if (tsmux_find_stream (mux->tsmux, pid)) {
+            GST_WARNING_OBJECT (mux, "Duplicate PID");
+          }
+        } else {
+          pid = tsmux_get_new_pid (mux->tsmux);
+        }
+
+        ts_data->pid = pid;
+      }
     }
 
     ts_data->prog =
