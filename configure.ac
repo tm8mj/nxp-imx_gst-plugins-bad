@@ -776,7 +776,7 @@ case $host in
     LIBS=$old_LIBS
     CFLAGS=$old_CFLAGS
 
-    PKG_CHECK_MODULES(WAYLAND_EGL, wayland-client >= 1.0 wayland-cursor >= 1.0 wayland-egl >= 9.0, HAVE_WAYLAND_EGL=yes, HAVE_WAYLAND_EGL=no)
+    PKG_CHECK_MODULES(WAYLAND_EGL, wayland-client >= 1.0 wayland-cursor >= 1.0 wayland-egl >= 1.0, HAVE_WAYLAND_EGL=yes, HAVE_WAYLAND_EGL=no)
 
     # OS X and iOS always have GL available
     case $host in
