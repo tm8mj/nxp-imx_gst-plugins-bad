@@ -42,6 +42,7 @@ plugin_init (GstPlugin * plugin)
   GST_DEBUG_CATEGORY_INIT (videoparseutils_debug, "videoparseutils", 0,
       "video parse utilities");
 
+#if 0
   ret |= gst_element_register (plugin, "h263parse",
       GST_RANK_PRIMARY + 1, GST_TYPE_H263_PARSE);
   ret |= gst_element_register (plugin, "h264parse",
@@ -60,7 +61,26 @@ plugin_init (GstPlugin * plugin)
       GST_RANK_SECONDARY, GST_TYPE_H265_PARSE);
   ret |= gst_element_register (plugin, "vc1parse",
       GST_RANK_NONE, GST_TYPE_VC1_PARSE);
-
+#else
+  ret |= gst_element_register (plugin, "h263parse",
+      GST_RANK_MARGINAL - 1, GST_TYPE_H263_PARSE);
+  ret |= gst_element_register (plugin, "h264parse",
+      GST_RANK_PRIMARY + 1, GST_TYPE_H264_PARSE);
+  ret |= gst_element_register (plugin, "diracparse",
+      GST_RANK_NONE, GST_TYPE_DIRAC_PARSE);
+  ret |= gst_element_register (plugin, "mpegvideoparse",
+      GST_RANK_MARGINAL - 1, GST_TYPE_MPEGVIDEO_PARSE);
+  ret |= gst_element_register (plugin, "mpeg4videoparse",
+      GST_RANK_MARGINAL - 1, GST_TYPE_MPEG4VIDEO_PARSE);
+  ret |= gst_element_register (plugin, "pngparse",
+      GST_RANK_MARGINAL - 1, GST_TYPE_PNG_PARSE);
+  ret |= gst_element_register (plugin, "jpeg2000parse",
+      GST_RANK_PRIMARY, GST_TYPE_JPEG2000_PARSE);
+  ret |= gst_element_register (plugin, "h265parse",
+      GST_RANK_PRIMARY + 1, GST_TYPE_H265_PARSE);
+  ret |= gst_element_register (plugin, "vc1parse",
+      GST_RANK_NONE, GST_TYPE_VC1_PARSE);
+#endif
   return ret;
 }
 
