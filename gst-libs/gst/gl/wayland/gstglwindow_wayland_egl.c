@@ -305,13 +305,13 @@ create_surfaces (GstGLWindowWaylandEGL * window_egl)
   if (window_egl->window.window_width > 0)
     width = window_egl->window.window_width;
   else
-    width = 320;
+    width = 1024;
   window_egl->window.window_width = width;
 
   if (window_egl->window.window_height > 0)
     height = window_egl->window.window_height;
   else
-    height = 240;
+    height = 768;
   window_egl->window.window_height = height;
 
   if (!window_egl->window.native) {
