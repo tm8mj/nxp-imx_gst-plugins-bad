@@ -143,6 +143,10 @@ struct _GstGLImageSink
     GstGLRotateMethod current_rotate_method;
     GstGLRotateMethod rotate_method;
     const gfloat *transform_matrix;
+
+    /* fps print support */
+    guint64 frame_showed;
+    GstClockTime run_time;
 };
 
 struct _GstGLImageSinkClass
