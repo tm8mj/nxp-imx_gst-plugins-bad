@@ -245,6 +245,10 @@ destroy_surfaces (GstGLWindowWaylandEGL * window_egl)
     wl_egl_window_destroy (window_egl->window.native);
     window_egl->window.native = NULL;
   }
+  if(window_egl->window.surface_queue) {
+    wl_event_queue_destroy (window_egl->window.surface_queue);
+    window_egl->window.surface_queue = NULL;
+  }
 }
 
 static void
@@ -253,13 +257,15 @@ create_surfaces (GstGLWindowWaylandEGL * window_egl)
   GstGLDisplayWayland *display =
       GST_GL_DISPLAY_WAYLAND (GST_GL_WINDOW (window_egl)->display);
   gint width, height;
+  if (!window_egl->window.surface_queue)
+    window_egl->window.surface_queue = wl_display_create_queue (display->display);
 
   if (!window_egl->window.surface) {
     window_egl->window.surface =
         wl_compositor_create_surface (display->compositor);
-    if (window_egl->window.queue)
+    if (window_egl->window.surface_queue)
       wl_proxy_set_queue ((struct wl_proxy *) window_egl->window.surface,
-          window_egl->window.queue);
+          window_egl->window.surface_queue);
   }
 
   if (window_egl->window.foreign_surface) {
@@ -275,9 +281,9 @@ create_surfaces (GstGLWindowWaylandEGL * window_egl)
       window_egl->window.subsurface =
           wl_subcompositor_get_subsurface (display->subcompositor,
           window_egl->window.surface, window_egl->window.foreign_surface);
-      if (window_egl->window.queue)
+      if (window_egl->window.surface_queue)
         wl_proxy_set_queue ((struct wl_proxy *) window_egl->window.subsurface,
-            window_egl->window.queue);
+            window_egl->window.surface_queue);
 
       wl_subsurface_set_position (window_egl->window.subsurface,
           window_egl->window.window_x, window_egl->window.window_y);
@@ -289,9 +295,9 @@ create_surfaces (GstGLWindowWaylandEGL * window_egl)
       window_egl->window.shell_surface =
           wl_shell_get_shell_surface (display->shell,
           window_egl->window.surface);
-      if (window_egl->window.queue)
+      if (window_egl->window.surface_queue)
         wl_proxy_set_queue ((struct wl_proxy *) window_egl->window.
-            shell_surface, window_egl->window.queue);
+            shell_surface, window_egl->window.surface_queue);
 
       wl_shell_surface_add_listener (window_egl->window.shell_surface,
           &shell_surface_listener, window_egl);
@@ -319,9 +325,9 @@ create_surfaces (GstGLWindowWaylandEGL * window_egl)
 
     window_egl->window.native =
         wl_egl_window_create (window_egl->window.surface, width, height);
-    if (window_egl->window.queue)
+    if (window_egl->window.surface_queue)
       wl_proxy_set_queue ((struct wl_proxy *) window_egl->window.native,
-          window_egl->window.queue);
+          window_egl->window.surface_queue);
   }
 }
 
@@ -372,6 +378,11 @@ gst_gl_window_wayland_egl_close (GstGLWindow * window)
 
   destroy_surfaces (window_egl);
 
+  if(window_egl->window.wl_queue) {
+    wl_event_queue_destroy (window_egl->window.wl_queue);
+    window_egl->window.wl_queue = NULL;
+  }
+
   g_source_destroy (window_egl->wl_source);
   g_source_unref (window_egl->wl_source);
   window_egl->wl_source = NULL;
@@ -400,10 +411,10 @@ gst_gl_window_wayland_egl_open (GstGLWindow * window, GError ** error)
     return FALSE;
   }
 
-  window_egl->window.queue = wl_display_create_queue (display->display);
+  window_egl->window.wl_queue = wl_display_create_queue (display->display);
 
   window_egl->wl_source = wayland_event_source_new (display->display,
-      window_egl->window.queue);
+      window_egl->window.wl_queue);
 
   if (!GST_GL_WINDOW_CLASS (parent_class)->open (window, error))
     return FALSE;
@@ -452,7 +463,7 @@ gst_gl_window_wayland_egl_show (GstGLWindow * window)
   create_surfaces (window_egl);
 
   if (gst_gl_wl_display_roundtrip_queue (display_wayland->display,
-          window_egl->window.queue) < 0)
+          window_egl->window.surface_queue) < 0)
     GST_WARNING_OBJECT (window, "failed a roundtrip");
 }
 

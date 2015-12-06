@@ -63,7 +63,7 @@ struct display {
 struct window {
   struct display *display;
 
-  struct wl_event_queue     *queue;
+  struct wl_event_queue     *wl_queue, *surface_queue;
   struct wl_surface         *surface;
   struct wl_shell_surface   *shell_surface;
   struct wl_egl_window      *native;
