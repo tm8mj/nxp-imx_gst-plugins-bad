@@ -47,6 +47,7 @@ struct _GstGLColorConvertElement
   GstGLColorConvert *convert;
   GstCaps *in_caps;
   GstCaps *out_caps;
+  gboolean disable_passthrough;
 };
 
 struct _GstGLColorConvertElementClass

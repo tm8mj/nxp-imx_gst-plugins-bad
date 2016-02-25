@@ -35,6 +35,14 @@ G_DEFINE_TYPE_WITH_CODE (GstGLColorConvertElement, gst_gl_color_convert_element,
         "glconvertelement", 0, "convert");
     );
 
+enum
+{
+  GL_COLOR_CONVERT_PROP_0,
+  GL_COLOR_CONVERT_PROP_DISABLE_PASSTHROUGH
+};
+
+#define DISABLE_PASSTHROUGH_DAFAULT FALSE
+
 static gboolean gst_gl_color_convert_element_set_caps (GstBaseTransform * bt,
     GstCaps * in_caps, GstCaps * out_caps);
 static GstCaps *gst_gl_color_convert_element_transform_caps (GstBaseTransform *
@@ -53,6 +61,15 @@ static GstFlowReturn gst_gl_color_convert_element_transform (GstBaseTransform *
     bt, GstBuffer * inbuf, GstBuffer * outbuf);
 static GstCaps *gst_gl_color_convert_element_fixate_caps (GstBaseTransform *
     bt, GstPadDirection direction, GstCaps * caps, GstCaps * othercaps);
+
+static void gst_gl_color_convert_set_property (GObject *object,
+    guint prop_id,
+    const GValue *value,
+    GParamSpec *pspec);
+static void gst_gl_color_convert_get_property (GObject *object,
+    guint prop_id,
+    GValue *value,
+    GParamSpec *pspec);
 
 static GstStaticPadTemplate gst_gl_color_convert_element_src_pad_template =
 GST_STATIC_PAD_TEMPLATE ("src",
@@ -89,6 +106,10 @@ gst_gl_color_convert_element_class_init (GstGLColorConvertElementClass * klass)
 {
   GstBaseTransformClass *bt_class = GST_BASE_TRANSFORM_CLASS (klass);
   GstElementClass *element_class = GST_ELEMENT_CLASS (klass);
+  GObjectClass *object_class = G_OBJECT_CLASS (klass);
+
+  object_class->set_property = gst_gl_color_convert_set_property;
+  object_class->get_property = gst_gl_color_convert_get_property;
 
   bt_class->transform_caps = gst_gl_color_convert_element_transform_caps;
   bt_class->set_caps = gst_gl_color_convert_element_set_caps;
@@ -108,6 +129,13 @@ gst_gl_color_convert_element_class_init (GstGLColorConvertElementClass * klass)
   gst_element_class_add_static_pad_template (element_class,
       &gst_gl_color_convert_element_sink_pad_template);
 
+  g_object_class_install_property (object_class, GL_COLOR_CONVERT_PROP_DISABLE_PASSTHROUGH,
+      g_param_spec_boolean ("disable_passthrough",
+          "Disable passthrough",
+          "Disable passthrough mode",
+          DISABLE_PASSTHROUGH_DAFAULT,
+          G_PARAM_READWRITE));
+
   gst_element_class_set_metadata (element_class,
       "OpenGL color converter", "Filter/Converter/Video",
       "Converts between color spaces using OpenGL shaders",
@@ -119,6 +147,41 @@ gst_gl_color_convert_element_init (GstGLColorConvertElement * convert)
 {
   gst_base_transform_set_prefer_passthrough (GST_BASE_TRANSFORM (convert),
       TRUE);
+  convert->disable_passthrough = FALSE;
+}
+
+static void
+gst_gl_color_convert_set_property (GObject *object,
+    guint prop_id,
+    const GValue *value,
+    GParamSpec *pspec)
+{
+  GstGLColorConvertElement *convert = GST_GL_COLOR_CONVERT_ELEMENT (object);
+  switch (prop_id) {
+    case GL_COLOR_CONVERT_PROP_DISABLE_PASSTHROUGH:
+      convert->disable_passthrough = g_value_get_boolean (value);
+      break;
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+      break;
+  }
+}
+
+static void
+gst_gl_color_convert_get_property (GObject *object,
+    guint prop_id,
+    GValue *value,
+    GParamSpec *pspec)
+{
+  GstGLColorConvertElement *convert = GST_GL_COLOR_CONVERT_ELEMENT (object);
+  switch (prop_id) {
+    case GL_COLOR_CONVERT_PROP_DISABLE_PASSTHROUGH:
+      g_value_set_boolean (value, convert->disable_passthrough);
+      break;
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+      break;
+  }
 }
 
 static gboolean
@@ -132,6 +195,13 @@ gst_gl_color_convert_element_set_caps (GstBaseTransform * bt,
 
   if (convert->convert)
     gst_gl_color_convert_set_caps (convert->convert, in_caps, out_caps);
+
+  if(gst_base_transform_is_passthrough (bt) && convert->disable_passthrough){
+    /* if in passthrough mode and disable_passthrough is set to true, 
+     * set passthrough to FALSE*/
+    GST_DEBUG_OBJECT(convert, "Disable passthrough mode");
+    gst_base_transform_set_passthrough(bt, FALSE);
+  }
 
   return TRUE;
 }
