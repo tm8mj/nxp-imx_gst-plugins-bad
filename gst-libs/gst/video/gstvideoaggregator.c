@@ -781,11 +781,9 @@ gst_video_aggregator_update_src_caps (GstVideoAggregator * vagg)
       g_return_val_if_fail (finfo != NULL, FALSE);
 
       if (at_least_one_alpha && !(finfo->flags & GST_VIDEO_FORMAT_FLAG_ALPHA)) {
-        GST_ELEMENT_ERROR (vagg, CORE, NEGOTIATION,
+        GST_WARNING_OBJECT (vagg,
             ("At least one of the input pads contains alpha, but configured caps don't support alpha."),
             ("Either convert your inputs to not contain alpha or add a videoconvert after the aggregator"));
-        ret = FALSE;
-        goto done;
       }
     }
 
