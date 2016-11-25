@@ -29,6 +29,10 @@
 #include <gst/gl/gstglphymemory.h>
 #endif
 
+#if GST_GL_HAVE_IONDMA
+#include <gst/gl/gstglmemorydma.h>
+#endif
+
 GST_DEBUG_CATEGORY_STATIC (gst_gl_download_element_debug);
 #define GST_CAT_DEFAULT gst_gl_download_element_debug
 
@@ -173,8 +177,22 @@ gst_gl_download_element_prepare_output_buffer (GstBaseTransform * bt,
   gint i, n;
   GstGLMemory *glmem;
 
-#if GST_GL_HAVE_PHYMEM
   glmem = gst_buffer_peek_memory (inbuf, 0);
+#if GST_GL_HAVE_IONDMA
+  if (gst_is_gl_memory_dma (glmem)) {
+    GstGLContext *context = GST_GL_BASE_FILTER (bt)->context;
+    GstVideoInfo info;
+
+    gst_video_info_from_caps (&info, src_caps);
+    *outbuf = gst_gl_memory_dma_buffer_to_gstbuffer (context, &info, inbuf);
+
+    GST_DEBUG_OBJECT (download, "gl download with dma buf.");
+
+    return GST_FLOW_OK;
+  }
+#endif
+
+#if GST_GL_HAVE_PHYMEM
   if (gst_is_gl_physical_memory (glmem)) {
     GstGLContext *context = GST_GL_BASE_FILTER (bt)->context;
     GstVideoInfo info;
@@ -233,6 +251,7 @@ gst_gl_download_element_propose_allocation (GstBaseTransform * bt,
   GstCaps *caps;
   GstStructure *config;
   gsize size;
+  GstVideoFormat fmt;
 
   gst_query_parse_allocation (query, &caps, NULL);
   if (!gst_video_info_from_caps (&info, caps)) {
@@ -240,12 +259,21 @@ gst_gl_download_element_propose_allocation (GstBaseTransform * bt,
     return FALSE;
   }
 
-  GST_DEBUG_OBJECT (bt, "video format is %s", gst_video_format_to_string (GST_VIDEO_INFO_FORMAT (&info)));
-
   gst_allocation_params_init (&params);
 
+  fmt = GST_VIDEO_INFO_FORMAT (&info);
+
+  GST_DEBUG_OBJECT (bt, "video format is %s", gst_video_format_to_string (fmt));
+
+#if GST_GL_HAVE_IONDMA
+  if (fmt == GST_VIDEO_FORMAT_RGBA || fmt == GST_VIDEO_FORMAT_RGB16) {
+    allocator = gst_gl_memory_dma_allocator_obtain ();
+    GST_DEBUG_OBJECT (bt, "obtain dma memory allocator %p.", allocator);
+  }
+#endif
+
 #if GST_GL_HAVE_PHYMEM
-  if (gst_is_gl_physical_memory_supported_fmt (&info)) {
+  if (!allocator && gst_is_gl_physical_memory_supported_fmt (&info)) {
     allocator = gst_phy_mem_allocator_obtain ();
     GST_DEBUG_OBJECT (bt, "obtain physical memory allocator %p.", allocator);
   }

@@ -137,6 +137,12 @@ libgstgl_@GST_API_VERSION@include_HEADERS += gstglphymemory.h
 libgstgl_@GST_API_VERSION@_la_LIBADD += -lg2d
 endif
 
+if HAVE_IONDMA
+libgstgl_@GST_API_VERSION@_la_SOURCES += gstglmemorydma.c
+libgstgl_@GST_API_VERSION@include_HEADERS += gstglmemorydma.h
+endif
+
+
 configexecincludedir = $(libdir)/gstreamer-@GST_API_VERSION@/include/gst/gl
 nodist_configexecinclude_HEADERS = $(built_sys_header_configure)
 
