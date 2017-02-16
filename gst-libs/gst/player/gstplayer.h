@@ -314,6 +314,10 @@ GstElement * gst_player_get_text_sink (GstPlayer * player);
 
 GstPlayerState  gst_player_get_state (GstPlayer * player);
 
+void         gst_player_play_sync (GstPlayer * player, gint time_out);
+void         gst_player_stop_sync (GstPlayer * player, gint time_out);
+void         gst_player_pause_sync (GstPlayer * player, gint time_out);
+
 G_END_DECLS
 
 #endif /* __GST_PLAYER_H__ */
