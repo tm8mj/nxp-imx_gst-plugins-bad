@@ -312,6 +312,8 @@ gboolean    gst_player_set_text_sink (GstPlayer * player, GstElement * text_sink
 GstElement * gst_player_get_audio_sink (GstPlayer * player);
 GstElement * gst_player_get_text_sink (GstPlayer * player);
 
+GstPlayerState  gst_player_get_state (GstPlayer * player);
+
 G_END_DECLS
 
 #endif /* __GST_PLAYER_H__ */

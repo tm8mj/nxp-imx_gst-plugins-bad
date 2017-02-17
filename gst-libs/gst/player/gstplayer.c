@@ -5117,3 +5117,23 @@ gst_player_get_text_sink (GstPlayer * self)
 
   return actual_sink;
 }
+
+/**
+ * gst_player_get_state:
+ * @player: #GstPlayer instance
+ *
+ * Gets internal GstPlayer state.
+ * It's not guaranteed that the state returned is the current state,
+ * it might've changed in the meantime.
+ *
+ * Returns: (transfer none): internal GstPlayerState
+ *
+ * Since 1.12
+ */
+GstPlayerState
+gst_player_get_state (GstPlayer * self)
+{
+  g_return_val_if_fail (GST_IS_PLAYER (self), GST_PLAYER_STATE_STOPPED);
+
+  return self->app_state;
+}
