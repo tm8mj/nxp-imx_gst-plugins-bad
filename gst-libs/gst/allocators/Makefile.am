@@ -5,6 +5,7 @@ libgstbadallocators_@GST_API_VERSION@_includedir = $(includedir)/gstreamer-@GST_
 libgstbadallocators_@GST_API_VERSION@_include_HEADERS = \
 	badallocators.h \
 	gstphysmemory.h \
+	gstdmabufmeta.h \
 	gstallocatorphymem.h
 
 if USE_ION
@@ -16,6 +17,7 @@ noinst_HEADERS =
 
 libgstbadallocators_@GST_API_VERSION@_la_SOURCES = \
 	gstphysmemory.c \
+	gstdmabufmeta.c \
 	gstallocatorphymem.c
 
 if USE_ION
