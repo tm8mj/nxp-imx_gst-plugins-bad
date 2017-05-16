@@ -871,6 +871,17 @@ if test "x$HAVE_VIV_DIRECTVIV" = "xyes"; then
           GST_GL_HAVE_VIV_DIRECTVIV=1
 fi
 
+dnl check imx6 g2d support
+HAVE_G2D=no
+AC_CHECK_HEADER(g2d.h, HAVE_G2D=yes, HAVE_G2D=no)
+
+GST_GL_HAVE_PHYMEM=0
+if test "x$HAVE_G2D" = "xyes" -a "x$HAVE_VIV_DIRECTVIV" = "xyes"; then
+  GST_GL_HAVE_PHYMEM=1
+else
+  AC_MSG_WARN([Physical memory do not support])
+fi
+
 dnl check if we can include both GL and GLES2 at the same time
 if test "x$HAVE_GL" = "xyes" -a "x$HAVE_GLES2" = "xyes"; then
   GLES3_H_DEFINE=0
@@ -1291,6 +1302,7 @@ GL_CONFIG_DEFINES="$GL_CONFIG_DEFINES
 GL_CONFIG_DEFINES="$GL_CONFIG_DEFINES
 #define GST_GL_HAVE_DMABUF $GST_GL_HAVE_DMABUF
 #define GST_GL_HAVE_VIV_DIRECTVIV $GST_GL_HAVE_VIV_DIRECTVIV
+#define GST_GL_HAVE_PHYMEM $GST_GL_HAVE_PHYMEM
 "
 
 dnl Check for no platforms/window systems
@@ -1326,6 +1338,7 @@ if test "x$GL_APIS" = "x" -o "x$GL_PLATFORMS" = "x" -o "x$GL_WINDOWS" = "x"; the
   HAVE_WINDOW_COCOA=no
   HAVE_WINDOW_EAGL=no
   HAVE_WINDOW_VIV_FB=no
+  HAVE_G2D=no
 fi
 
 AC_SUBST(GL_APIS)
@@ -1345,6 +1358,7 @@ AM_CONDITIONAL(HAVE_WINDOW_WAYLAND, test "x$HAVE_WINDOW_WAYLAND" = "xyes")
 AM_CONDITIONAL(HAVE_WINDOW_ANDROID, test "x$HAVE_WINDOW_ANDROID" = "xyes")
 AM_CONDITIONAL(HAVE_WINDOW_EAGL, test "x$HAVE_WINDOW_EAGL" = "xyes")
 AM_CONDITIONAL(HAVE_WINDOW_VIV_FB, test "x$HAVE_WINDOW_VIV_FB" = "xyes")
+AM_CONDITIONAL(HAVE_GL_PHYMEM, test "x$HAVE_G2D" = "xyes" -a "x$HAVE_VIV_DIRECTVIV" = "xyes")
 
 AM_CONDITIONAL(USE_OPENGL, test "x$USE_OPENGL" = "xyes")
 AM_CONDITIONAL(USE_GLES2, test "x$USE_GLES2" = "xyes")

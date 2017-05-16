@@ -131,6 +131,12 @@ libgstgl_@GST_API_VERSION@_la_LIBADD += egl/libgstgl-egl.la
 libgstgl_@GST_API_VERSION@_la_LIBADD += -lgstallocators-$(GST_API_VERSION)
 endif
 
+if HAVE_GL_PHYMEM
+libgstgl_@GST_API_VERSION@_la_SOURCES += gstglphymemory.c
+libgstgl_@GST_API_VERSION@include_HEADERS += gstglphymemory.h
+libgstgl_@GST_API_VERSION@_la_LIBADD += -lg2d
+endif
+
 configexecincludedir = $(libdir)/gstreamer-@GST_API_VERSION@/include/gst/gl
 nodist_configexecinclude_HEADERS = $(built_sys_header_configure)
 

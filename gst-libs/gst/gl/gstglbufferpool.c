@@ -26,6 +26,10 @@
 #include "gstglbufferpool.h"
 #include "gstglutils.h"
 
+#if GST_GL_HAVE_PHYMEM
+#include <gst/gl/gstglphymemory.h>
+#endif
+
 /**
  * SECTION:gstglbufferpool
  * @title: GstGlBufferPool
@@ -117,7 +121,11 @@ gst_gl_buffer_pool_set_config (GstBufferPool * pool, GstStructure * config)
     gst_object_unref (priv->allocator);
 
   if (allocator) {
-    if (!GST_IS_GL_MEMORY_ALLOCATOR (allocator)) {
+    if (!GST_IS_GL_MEMORY_ALLOCATOR (allocator) 
+#if GST_GL_HAVE_PHYMEM
+        && (g_strcmp0 (allocator->mem_type, GST_GL_PHY_MEM_ALLOCATOR) != 0)
+#endif
+        ) {
       gst_object_unref (allocator);
       goto wrong_allocator;
     } else {
@@ -274,10 +282,21 @@ gst_gl_buffer_pool_alloc (GstBufferPool * pool, GstBuffer ** buffer,
     goto no_buffer;
   }
 
+#if GST_GL_HAVE_PHYMEM
+  if ((g_strcmp0 (priv->allocator->mem_type, GST_GL_PHY_MEM_ALLOCATOR) == 0)) {
+    if (!gst_gl_physical_memory_setup_buffer (priv->allocator, buf, priv->gl_params)) {
+      GST_ERROR_OBJECT (pool, "Can't create physcial buffer.");
+      return GST_FLOW_ERROR;
+    }
+    goto done;
+  }
+#endif
+
   alloc = GST_GL_MEMORY_ALLOCATOR (priv->allocator);
   if (!gst_gl_memory_setup_buffer (alloc, buf, priv->gl_params, NULL, NULL, 0))
     goto mem_create_failed;
 
+done:
   if (priv->add_glsyncmeta)
     gst_buffer_add_gl_sync_meta (glpool->context, buf);
 
