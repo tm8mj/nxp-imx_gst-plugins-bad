@@ -78,6 +78,11 @@ GstEGLImage *           gst_egl_image_from_dmabuf               (GstGLContext * 
                                                                  GstVideoInfo * in_info,
                                                                  gint plane,
                                                                  gsize offset);
+GstEGLImage *           gst_egl_image_from_dmabuf_singleplaner  (GstGLContext * context,
+                                                                 GstMemory ** mems,
+                                                                 GstVideoInfo * in_info,
+                                                                 gint n_planes,
+                                                                 gsize * offset);
 #endif
 
 /**

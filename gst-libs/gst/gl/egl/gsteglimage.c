@@ -462,4 +462,81 @@ gst_egl_image_from_dmabuf (GstGLContext * context,
   return gst_egl_image_new_wrapped (context, img, format, NULL,
       (GstEGLImageDestroyNotify) _destroy_egl_image);
 }
+
+GstEGLImage *
+gst_egl_image_from_dmabuf_singleplaner (GstGLContext * context,
+    GstMemory ** mems, GstVideoInfo * in_info, gint n_planes, gsize * offset)
+{
+  gint fourcc;
+  gint atti = 0;
+  guint i;
+  guintptr attribs[25];
+  guintptr dmafd_flags[] = {
+    EGL_DMA_BUF_PLANE0_FD_EXT,
+    EGL_DMA_BUF_PLANE1_FD_EXT,
+    EGL_DMA_BUF_PLANE2_FD_EXT
+  };
+  guintptr offset_flags[] = {
+    EGL_DMA_BUF_PLANE0_OFFSET_EXT,
+    EGL_DMA_BUF_PLANE1_OFFSET_EXT,
+    EGL_DMA_BUF_PLANE2_OFFSET_EXT
+  };
+  guintptr pitch_flags[] = {
+    EGL_DMA_BUF_PLANE0_PITCH_EXT,
+    EGL_DMA_BUF_PLANE1_PITCH_EXT,
+    EGL_DMA_BUF_PLANE2_PITCH_EXT
+  };
+  EGLImageKHR img = EGL_NO_IMAGE_KHR;
+
+  fourcc = _drm_fourcc_from_info (in_info, 0);
+
+  if(GST_VIDEO_INFO_IS_YUV(in_info)) {
+    fourcc = gst_video_format_to_fourcc (GST_VIDEO_INFO_FORMAT(in_info));
+
+    /* gstreamer fourcc is not compatible with DRM FOURCC*/
+    if(GST_VIDEO_INFO_FORMAT(in_info) == GST_VIDEO_FORMAT_I420)
+      fourcc = DRM_FORMAT_YUV420;
+  }
+
+  GST_DEBUG ("fourcc %.4s (%d) n_planes %d (%dx%d)",
+      (char *) &fourcc, fourcc, n_planes,
+      GST_VIDEO_INFO_COMP_WIDTH (in_info, 0),
+      GST_VIDEO_INFO_COMP_HEIGHT (in_info, 0));
+
+  attribs[atti++] = EGL_WIDTH;
+  attribs[atti++] = GST_VIDEO_INFO_WIDTH (in_info);
+  attribs[atti++] = EGL_HEIGHT;
+  attribs[atti++] = GST_VIDEO_INFO_HEIGHT (in_info);
+
+  attribs[atti++] = EGL_LINUX_DRM_FOURCC_EXT;
+  attribs[atti++] = fourcc;
+
+  for (i = 0; i < n_planes; i++) {
+    attribs[atti++] = dmafd_flags[i];
+    attribs[atti++] = gst_dmabuf_memory_get_fd (mems[i]);
+    attribs[atti++] = offset_flags[i];
+    attribs[atti++] = offset[i];
+    attribs[atti++] = pitch_flags[i];
+    attribs[atti++] = GST_VIDEO_INFO_PLANE_STRIDE (in_info, i);
+  }
+
+  attribs[atti] = EGL_NONE;
+
+  for (int i = 0; i < atti; i++)
+    GST_LOG ("attr %i: %" G_GINTPTR_FORMAT, i, attribs[i]);
+
+  g_assert (atti <= 25);
+
+  img = _gst_egl_image_create (context, EGL_LINUX_DMA_BUF_EXT, NULL, attribs);
+
+  if (!img) {
+    GST_WARNING ("eglCreateImage failed: %s",
+        gst_egl_get_error_string (eglGetError ()));
+    return NULL;
+  }
+
+  /* one texture for YUV format is treat as RGBA texture in imx GPU */
+  return gst_egl_image_new_wrapped (context, img, GST_GL_RGBA,
+      NULL, (GstEGLImageDestroyNotify) _destroy_egl_image);
+}
 #endif /* GST_GL_HAVE_DMABUF */

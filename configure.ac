@@ -565,6 +565,15 @@ if test "x$HAVE_WINSOCK2_H" = "xyes"; then
   AC_SUBST(WINSOCK2_LIBS)
 fi
 
+dnl check for ion
+old_CFLAGS=$CFLAGS
+CFLAGS="$CFLAGS `$PKG_CONFIG --cflags gstreamer-allocators-1.0`"
+translit(dnm, m, l) AM_CONDITIONAL(USE_ION, true)
+AG_GST_CHECK_FEATURE(ION, [ion], ion, [
+  AC_CHECK_HEADER(gst/allocators/gstionmemory.h, HAVE_ION="yes", HAVE_ION="no")
+])
+CFLAGS=$old_CFLAGS
+
 dnl *** opengl ***
 AC_ARG_ENABLE([opengl],
      [  --enable-opengl         Enable Desktop OpenGL support @<:@default=auto@:>@],
@@ -857,10 +866,16 @@ PKG_CHECK_MODULES(GST_ALLOCATORS, gstreamer-allocators-1.0,
   HAVE_GST_ALLOCATORS=yes, )
 
 GST_GL_HAVE_DMABUF=0
+GST_GL_HAVE_IONDMA=0
+HAVE_IONDMA=no
 if test "x$HAVE_DRM_FOURCC_HEADER" = "xyes" -a \
         "x$HAVE_GST_ALLOCATORS" = "xyes" -a \
         "x$HAVE_EGL" = "xyes"; then
           GST_GL_HAVE_DMABUF=1
+  if test "x$HAVE_ION" = "xyes"; then
+    HAVE_IONDMA=yes
+    GST_GL_HAVE_IONDMA=1
+  fi
 fi
 
 dnl check for Vivante DirectVIV support
@@ -1301,6 +1316,7 @@ GL_CONFIG_DEFINES="$GL_CONFIG_DEFINES
 
 GL_CONFIG_DEFINES="$GL_CONFIG_DEFINES
 #define GST_GL_HAVE_DMABUF $GST_GL_HAVE_DMABUF
+#define GST_GL_HAVE_IONDMA $GST_GL_HAVE_IONDMA
 #define GST_GL_HAVE_VIV_DIRECTVIV $GST_GL_HAVE_VIV_DIRECTVIV
 #define GST_GL_HAVE_PHYMEM $GST_GL_HAVE_PHYMEM
 "
@@ -1339,6 +1355,7 @@ if test "x$GL_APIS" = "x" -o "x$GL_PLATFORMS" = "x" -o "x$GL_WINDOWS" = "x"; the
   HAVE_WINDOW_EAGL=no
   HAVE_WINDOW_VIV_FB=no
   HAVE_G2D=no
+  HAVE_IONDMA=no
 fi
 
 AC_SUBST(GL_APIS)
@@ -1359,6 +1376,7 @@ AM_CONDITIONAL(HAVE_WINDOW_ANDROID, test "x$HAVE_WINDOW_ANDROID" = "xyes")
 AM_CONDITIONAL(HAVE_WINDOW_EAGL, test "x$HAVE_WINDOW_EAGL" = "xyes")
 AM_CONDITIONAL(HAVE_WINDOW_VIV_FB, test "x$HAVE_WINDOW_VIV_FB" = "xyes")
 AM_CONDITIONAL(HAVE_GL_PHYMEM, test "x$HAVE_G2D" = "xyes" -a "x$HAVE_VIV_DIRECTVIV" = "xyes")
+AM_CONDITIONAL(HAVE_IONDMA, test "x$HAVE_IONDMA" = "xyes")
 
 AM_CONDITIONAL(USE_OPENGL, test "x$USE_OPENGL" = "xyes")
 AM_CONDITIONAL(USE_GLES2, test "x$USE_GLES2" = "xyes")
