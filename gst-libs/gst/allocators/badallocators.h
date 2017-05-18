@@ -23,6 +23,7 @@
 #define __GST_ALLOCATORS_BAD_H__
 
 #include <gst/allocators/gstphysmemory.h>
+#include <gst/allocators/gstallocatorphymem.h>
 
 #endif /* __GST_ALLOCATORS_BAD_H__ */
 

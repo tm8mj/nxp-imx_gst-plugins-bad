@@ -4,12 +4,14 @@ libgstbadallocators_@GST_API_VERSION@_includedir = $(includedir)/gstreamer-@GST_
 
 libgstbadallocators_@GST_API_VERSION@_include_HEADERS = \
 	badallocators.h \
-	gstphysmemory.h
+	gstphysmemory.h \
+	gstallocatorphymem.h
 
 noinst_HEADERS =
 
 libgstbadallocators_@GST_API_VERSION@_la_SOURCES = \
-	gstphysmemory.c
+	gstphysmemory.c \
+	gstallocatorphymem.c
 
 libgstbadallocators_@GST_API_VERSION@_la_LIBADD = $(GST_LIBS) $(LIBM)
 libgstbadallocators_@GST_API_VERSION@_la_CFLAGS = $(GST_PLUGINS_BASE_CFLAGS) $(GST_CFLAGS)
