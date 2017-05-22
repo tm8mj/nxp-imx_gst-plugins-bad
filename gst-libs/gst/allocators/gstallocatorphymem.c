@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "gstallocatorphymem.h"
+#include "gstphysmemory.h"
 
 typedef struct {
   GstMemory mem;
@@ -212,7 +213,20 @@ default_free (GstAllocatorPhyMem *allocator, PhyMemBlock *phy_mem)
   return -1;
 }
 
-G_DEFINE_TYPE (GstAllocatorPhyMem, gst_allocator_phymem, GST_TYPE_ALLOCATOR);
+static guintptr
+gst_allocator_phymem_get_phys_addr (GstPhysMemoryAllocator *allocator, GstMemory *mem)
+{
+  return gst_phymem_get_phy (mem);
+}
+
+static void gst_allocator_phymem_iface_init(gpointer g_iface)
+{
+  GstPhysMemoryAllocatorInterface *iface = g_iface;
+  iface->get_phys_addr = gst_allocator_phymem_get_phys_addr;
+}
+
+G_DEFINE_TYPE_WITH_CODE (GstAllocatorPhyMem, gst_allocator_phymem, GST_TYPE_ALLOCATOR,
+    G_IMPLEMENT_INTERFACE(GST_TYPE_PHYS_MEMORY_ALLOCATOR, gst_allocator_phymem_iface_init));
 
 static void
 gst_allocator_phymem_class_init (GstAllocatorPhyMemClass * klass)
