@@ -428,6 +428,42 @@ ensure_kms_allocator (GstKMSSink * self)
   self->allocator = gst_kms_allocator_new (self->fd);
 }
 
+static void
+check_scaleable (GstKMSSink * self)
+{
+  gint result;
+  guint32 fb_id;
+  guint32 width, height;
+  GstKMSMemory *kmsmem = NULL;
+
+  if (!self->can_scale)
+    return;
+
+  if (self->conn_id < 0)
+    return;
+
+  kmsmem = (GstKMSMemory *) gst_kms_allocator_bo_alloc (self->allocator, &self->vinfo);
+  if (!kmsmem)
+    return;
+
+  fb_id = kmsmem->fb_id;
+
+  GST_INFO_OBJECT (self, "checking scaleable");
+
+  width = GST_VIDEO_INFO_WIDTH (&self->vinfo);
+  height = GST_VIDEO_INFO_HEIGHT (&self->vinfo);
+
+  result = drmModeSetPlane (self->ctrl_fd, self->plane_id, self->crtc_id, fb_id, 0,
+      0, 0, width/2, height/2,
+      0, 0, width << 16, height << 16);
+  if (result) {
+    self->can_scale = FALSE;
+    GST_INFO_OBJECT (self, "scale is not support");
+  }
+
+  g_clear_pointer (&kmsmem, gst_memory_unref);
+}
+
 static gboolean
 configure_mode_setting (GstKMSSink * self, GstVideoInfo * vinfo)
 {
@@ -1186,6 +1222,8 @@ gst_kms_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
 
   if (self->modesetting_enabled && !configure_mode_setting (self, &vinfo))
     goto modesetting_failed;
+
+  check_scaleable (self);
 
   GST_OBJECT_LOCK (self);
   if (self->reconfigure) {
