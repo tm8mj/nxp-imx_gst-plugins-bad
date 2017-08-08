@@ -58,6 +58,8 @@
 #include <string.h>
 
 #include <string.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 #include "gstkmssink.h"
 #include "gstkmsutils.h"
@@ -580,6 +582,21 @@ ensure_allowed_caps (GstKMSSink * self, drmModeConnector * conn,
   return (self->allowed_caps && !gst_caps_is_empty (self->allowed_caps));
 }
 
+static gint
+get_drm_minor_base (gint type)
+{
+  switch (type) {
+    case DRM_NODE_PRIMARY:
+      return 0;
+    case DRM_NODE_CONTROL:
+      return 64;
+    case DRM_NODE_RENDER:
+      return 128;
+    default:
+      return -1;
+  }
+}
+
 static gboolean
 set_drm_property (gint fd, guint32 object, guint32 object_type,
     drmModeObjectPropertiesPtr properties, const gchar * prop_name,
@@ -715,6 +732,7 @@ gst_kms_sink_start (GstBaseSink * bsink)
   drmModePlane *plane;
   gboolean universal_planes;
   gboolean ret;
+  gint minor;
 
   self = GST_KMS_SINK (bsink);
   universal_planes = FALSE;
@@ -729,7 +747,11 @@ gst_kms_sink_start (GstBaseSink * bsink)
     self->fd = drmOpen (self->devname, self->bus_id);
   else
     self->fd = kms_open (&self->devname);
-  if (self->fd < 0)
+
+  minor = get_drm_minor_base (DRM_NODE_CONTROL);
+  self->ctrl_fd = drmOpenControl(minor);
+
+  if (self->fd < 0 || self->ctrl_fd < 0)
     goto open_failed;
 
   log_drm_version (self);
@@ -943,6 +965,11 @@ gst_kms_sink_stop (GstBaseSink * bsink)
   if (self->fd >= 0) {
     drmClose (self->fd);
     self->fd = -1;
+  }
+
+  if (self->ctrl_fd >= 0) {
+    drmClose (self->ctrl_fd);
+    self->ctrl_fd = -1;
   }
 
   GST_OBJECT_LOCK (bsink);
@@ -1661,7 +1688,7 @@ retry_set_plane:
       "drmModeSetPlane at (%i,%i) %ix%i sourcing at (%i,%i) %ix%i",
       result.x, result.y, result.w, result.h, src.x, src.y, src.w, src.h);
 
-  ret = drmModeSetPlane (self->fd, self->plane_id, self->crtc_id, fb_id, 0,
+  ret = drmModeSetPlane (self->ctrl_fd, self->plane_id, self->crtc_id, fb_id, 0,
       result.x, result.y, result.w, result.h,
       /* source/cropping coordinates are given in Q16 */
       src.x << 16, src.y << 16, src.w << 16, src.h << 16);
