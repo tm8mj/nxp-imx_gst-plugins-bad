@@ -7,15 +7,29 @@ libgstbadallocators_@GST_API_VERSION@_include_HEADERS = \
 	gstphysmemory.h \
 	gstallocatorphymem.h
 
+if USE_ION
+libgstbadallocators_@GST_API_VERSION@_include_HEADERS += \
+	gstionmemory.h
+endif
+
 noinst_HEADERS =
 
 libgstbadallocators_@GST_API_VERSION@_la_SOURCES = \
 	gstphysmemory.c \
 	gstallocatorphymem.c
 
+if USE_ION
+libgstbadallocators_@GST_API_VERSION@_la_SOURCES += \
+	gstionmemory.c
+endif
+
 libgstbadallocators_@GST_API_VERSION@_la_LIBADD = $(GST_LIBS) $(LIBM)
 libgstbadallocators_@GST_API_VERSION@_la_CFLAGS = $(GST_PLUGINS_BASE_CFLAGS) $(GST_CFLAGS)
 libgstbadallocators_@GST_API_VERSION@_la_LDFLAGS = $(GST_LIB_LDFLAGS) $(GST_ALL_LDFLAGS) $(GST_LT_LDFLAGS)
+
+if USE_ION
+libgstbadallocators_@GST_API_VERSION@_la_LIBADD += -lgstallocators-$(GST_API_VERSION)
+endif
 
 if HAVE_INTROSPECTION
 BUILT_GIRSOURCES = GstBadAllocators-@GST_API_VERSION@.gir
