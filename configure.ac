@@ -565,15 +565,6 @@ if test "x$HAVE_WINSOCK2_H" = "xyes"; then
   AC_SUBST(WINSOCK2_LIBS)
 fi
 
-dnl check for ion
-old_CFLAGS=$CFLAGS
-CFLAGS="$CFLAGS `$PKG_CONFIG --cflags gstreamer-allocators-1.0`"
-translit(dnm, m, l) AM_CONDITIONAL(USE_ION, true)
-AG_GST_CHECK_FEATURE(ION, [ion], ion, [
-  AC_CHECK_HEADER(gst/allocators/gstionmemory.h, HAVE_ION="yes", HAVE_ION="no")
-])
-CFLAGS=$old_CFLAGS
-
 dnl *** opengl ***
 AC_ARG_ENABLE([opengl],
      [  --enable-opengl         Enable Desktop OpenGL support @<:@default=auto@:>@],
