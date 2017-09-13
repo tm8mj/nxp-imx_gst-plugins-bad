@@ -669,12 +669,6 @@ _dma_buf_upload_accept (gpointer impl, GstBuffer * buffer, GstCaps * in_caps,
           "EGL_KHR_image_base"))
     return FALSE;
 
-  /* FIXME: For imx8 with vpu and ion. Need check if the buffer
-   * is physical buffer first, otherwise it will do copy from
-   * physical buffer to dmabuf and cause performance downgrade */
-  if (gst_is_phys_memory(gst_buffer_peek_memory (buffer, 0)))
-    return FALSE;
-
   /* This will eliminate most non-dmabuf out there */
   if (!gst_is_dmabuf_memory (gst_buffer_peek_memory (buffer, 0))) {
     GstVideoFrame frame1, frame2;
