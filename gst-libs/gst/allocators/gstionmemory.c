@@ -29,14 +29,13 @@
 #include <linux/ion.h>
 
 #include <gst/allocators/gstdmabuf.h>
+#include "gstphysmemory.h"
 #include "gstionmemory.h"
 
 GST_DEBUG_CATEGORY_STATIC (ion_allocator_debug);
 #define GST_CAT_DEFAULT ion_allocator_debug
 
 #define gst_ion_allocator_parent_class parent_class
-
-G_DEFINE_TYPE (GstIONAllocator, gst_ion_allocator, GST_TYPE_DMABUF_ALLOCATOR)
 
 #define DEFAULT_HEAP_ID  0
 #define DEFAULT_FLAG     0
@@ -48,6 +47,57 @@ enum
   PROP_FLAG,
   PROP_LAST
 };
+
+static guintptr
+gst_ion_allocator_get_phys_addr (GstPhysMemoryAllocator *allocator, GstMemory *mem)
+{
+  GstIONAllocator *self = GST_ION_ALLOCATOR (allocator);
+  gint ret, fd;
+
+  if (self->fd < 0 || !mem) {
+    GST_ERROR ("ion get phys param wrong");
+    return 0;
+  }
+
+  if (!gst_is_dmabuf_memory (mem)) {
+    GST_ERROR ("isn't dmabuf memory");
+    return 0;
+  }
+
+  fd = gst_dmabuf_memory_get_fd (mem);
+  if (fd < 0) {
+    GST_ERROR ("dmabuf memory get fd failed");
+    return 0;
+  }
+
+  GST_DEBUG ("ion DMA FD: %d", fd);
+
+  struct ion_phys_dma_data data = {
+    .phys = 0,
+    .size = 0,
+    .dmafd = fd,
+  };
+
+  struct ion_custom_data custom = {
+    .cmd = ION_IOC_PHYS_DMA,
+    .arg = (unsigned long)&data,
+  };
+
+  ret = ioctl(self->fd, ION_IOC_CUSTOM, &custom);
+  if (ret < 0)
+    return 0;
+
+  return data.phys;
+}
+
+static void gst_ion_allocator_iface_init(gpointer g_iface)
+{
+  GstPhysMemoryAllocatorInterface *iface = g_iface;
+  iface->get_phys_addr = gst_ion_allocator_get_phys_addr;
+}
+
+G_DEFINE_TYPE_WITH_CODE (GstIONAllocator, gst_ion_allocator, GST_TYPE_DMABUF_ALLOCATOR,
+    G_IMPLEMENT_INTERFACE(GST_TYPE_PHYS_MEMORY_ALLOCATOR, gst_ion_allocator_iface_init));
 
 static gint
 gst_ion_ioctl (gint fd, gint req, void *arg)
