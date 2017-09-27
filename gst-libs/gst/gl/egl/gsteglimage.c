@@ -496,6 +496,8 @@ gst_egl_image_from_dmabuf_singleplaner (GstGLContext * context,
     /* gstreamer fourcc is not compatible with DRM FOURCC*/
     if(GST_VIDEO_INFO_FORMAT(in_info) == GST_VIDEO_FORMAT_I420)
       fourcc = DRM_FORMAT_YUV420;
+    if(GST_VIDEO_INFO_FORMAT(in_info) == GST_VIDEO_FORMAT_YUY2)
+      fourcc = DRM_FORMAT_YUYV;
   }
 
   GST_DEBUG ("fourcc %.4s (%d) n_planes %d (%dx%d)",
