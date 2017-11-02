@@ -63,6 +63,8 @@
 #include "gstkmsallocator.h"
 #include "gstimxcommon.h"
 
+#include <gst/video/gstvideohdr10meta.h>
+
 #define GST_PLUGIN_NAME "kmssink"
 #define GST_PLUGIN_DESC "Video sink using the Linux kernel mode setting API"
 
@@ -565,6 +567,15 @@ ensure_allowed_caps (GstKMSSink * self, drmModeConnector * conn,
 
       tmp_caps = gst_caps_merge (tmp_caps, caps);
     }
+    /* FIXME: Add NV12_10LE caps here, no need this code
+     * when new drm fourcc added*/
+    caps = gst_caps_new_simple ("video/x-raw",
+        "format", G_TYPE_STRING, "NV12_10LE",
+        "width", GST_TYPE_INT_RANGE, res->min_width, res->max_width,
+        "height", GST_TYPE_INT_RANGE, res->min_height, res->max_height,
+        "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, G_MAXINT, 1, NULL);
+
+    tmp_caps = gst_caps_merge (tmp_caps, caps);
 
     out_caps = gst_caps_merge (out_caps, gst_caps_simplify (tmp_caps));
   }
@@ -1560,6 +1571,30 @@ done:
   return buf;
 }
 
+void
+dump_hdr10meta (GstKMSSink *self, GstBuffer * buf)
+{
+
+  GstVideoHdr10Meta *meta = NULL;
+  meta = gst_buffer_get_video_hdr10_meta (buf);
+  if (meta){
+    /* TODO: just dump temporarily, to do configure to drm driver for hdr10 in future */
+    GST_INFO_OBJECT (self, "redPrimary x=%d y=%d", meta->hdr10meta.redPrimary[0], meta->hdr10meta.redPrimary[1]);
+    GST_INFO_OBJECT (self, "greenPrimary x=%d y=%d", meta->hdr10meta.greenPrimary[0], meta->hdr10meta.greenPrimary[1]);
+    GST_INFO_OBJECT (self, "bluePrimary x=%d y=%d", meta->hdr10meta.bluePrimary[0], meta->hdr10meta.bluePrimary[1]);
+    GST_INFO_OBJECT (self, "whitePoint x=%d y=%d", meta->hdr10meta.whitePoint[0], meta->hdr10meta.whitePoint[1]);
+    GST_INFO_OBJECT (self, "maxMasteringLuminance %d", meta->hdr10meta.maxMasteringLuminance);
+    GST_INFO_OBJECT (self, "minMasteringLuminance %d", meta->hdr10meta.minMasteringLuminance);
+    GST_INFO_OBJECT (self, "maxContentLightLevel %d", meta->hdr10meta.maxContentLightLevel);
+    GST_INFO_OBJECT (self, "maxFrameAverageLightLevel %d", meta->hdr10meta.maxFrameAverageLightLevel);
+    GST_INFO_OBJECT (self, "transferCharacteristics %d", meta->hdr10meta.transferCharacteristics);
+    GST_INFO_OBJECT (self, "colourPrimaries %d", meta->hdr10meta.colourPrimaries);
+    GST_INFO_OBJECT (self, "matrixCoeffs %d", meta->hdr10meta.matrixCoeffs);
+    GST_INFO_OBJECT (self, "chromaSampleLocTypeTopField %d", meta->hdr10meta.chromaSampleLocTypeTopField);
+    GST_INFO_OBJECT (self, "chromaSampleLocTypeBottomField %d", meta->hdr10meta.chromaSampleLocTypeBottomField);
+  }
+}
+
 static GstFlowReturn
 gst_kms_sink_show_frame (GstVideoSink * vsink, GstBuffer * buf)
 {
@@ -1573,6 +1608,8 @@ gst_kms_sink_show_frame (GstVideoSink * vsink, GstBuffer * buf)
   GstVideoRectangle dst = { 0, };
   GstVideoRectangle result;
   GstFlowReturn res;
+
+  dump_hdr10meta (GST_KMS_SINK (vsink), buf);
 
   self = GST_KMS_SINK (vsink);
 
