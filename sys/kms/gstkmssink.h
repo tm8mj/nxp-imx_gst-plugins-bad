@@ -68,6 +68,9 @@ struct _GstKMSSink {
   gboolean has_async_page_flip;
   gboolean can_scale;
 
+  /* global alpha */
+  gboolean is_alpha_set;
+
   gboolean modesetting_enabled;
 
   GstVideoInfo vinfo;
