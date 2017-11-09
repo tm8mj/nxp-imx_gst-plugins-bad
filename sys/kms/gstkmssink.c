@@ -1546,6 +1546,58 @@ activate_pool_failed:
   }
 }
 
+static void
+gst_kms_sink_set_primary_alpha (GstKMSSink * self, guint alpha)
+{
+  drmModeRes *res = NULL;
+  drmModePlaneRes *pres = NULL;
+  drmModePlane *plane = NULL;
+  drmModeObjectPropertiesPtr props = NULL;
+  drmModePropertyPtr prop = NULL;
+  guint i;
+
+  res = drmModeGetResources (self->fd);
+  if (!res)
+    goto out;
+
+  drmSetClientCap (self->fd, DRM_CLIENT_CAP_UNIVERSAL_PLANES, 1);
+
+  pres = drmModeGetPlaneResources (self->fd);
+  if (!pres)
+    goto out;
+
+  plane = find_plane_for_crtc (self->fd, res, pres, self->crtc_id);
+  if (!plane)
+    goto out;
+
+  props = drmModeObjectGetProperties (self->fd, plane->plane_id, DRM_MODE_OBJECT_PLANE);
+  for (i = 0; i < props->count_props; ++i) {
+     prop = drmModeGetProperty(self->fd, props->props[i]);
+      if (!strcmp(prop->name, "alpha"))
+         break;
+    drmModeFreeProperty (prop);
+    prop = NULL;
+  }
+
+  if (prop) {
+    GST_DEBUG ("set global alpha %d to primary plane %d property %d",
+        alpha, plane->plane_id, prop->prop_id);
+    drmModeObjectSetProperty (self->ctrl_fd, plane->plane_id, DRM_MODE_OBJECT_PLANE, prop->prop_id, alpha);
+    drmModeFreeProperty (prop);
+  }
+
+out:
+  if (res)
+    drmModeFreeResources (res);
+  if (pres)
+    drmModeFreePlaneResources (pres);
+  if (plane)
+    drmModeFreePlane (plane);
+  if (props)
+    drmModeFreeObjectProperties (props);
+  drmSetClientCap (self->fd, DRM_CLIENT_CAP_UNIVERSAL_PLANES, 0);
+}
+
 static GstStateChangeReturn
 gst_kms_sink_change_state (GstElement * element, GstStateChange transition)
 {
@@ -1560,6 +1612,7 @@ gst_kms_sink_change_state (GstElement * element, GstStateChange transition)
 
   switch (transition) {
     case GST_STATE_CHANGE_NULL_TO_READY:
+      self->is_alpha_set = FALSE;
       break;
     case GST_STATE_CHANGE_READY_TO_PAUSED:
       break;
@@ -1581,6 +1634,7 @@ gst_kms_sink_change_state (GstElement * element, GstStateChange transition)
     }
     case GST_STATE_CHANGE_PAUSED_TO_READY:
     {
+      gst_kms_sink_set_primary_alpha (self, 255);
       break;
     }
     case GST_STATE_CHANGE_READY_TO_NULL:
@@ -1755,6 +1809,11 @@ gst_kms_sink_show_frame (GstVideoSink * vsink, GstBuffer * buf)
     goto buffer_invalid;
 
   GST_TRACE_OBJECT (self, "displaying fb %d", fb_id);
+
+  if (!self->is_alpha_set) {
+    gst_kms_sink_set_primary_alpha (self, 0);
+    self->is_alpha_set = TRUE;
+  }
 
   GST_OBJECT_LOCK (self);
   if (self->modesetting_enabled) {
