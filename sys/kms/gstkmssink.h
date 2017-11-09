@@ -55,6 +55,10 @@ struct _GstKMSSink {
   gint plane_id;
   guint pipe;
 
+  /* fps print support */
+  guint64 frame_showed;
+  GstClockTime run_time;
+
   /* crtc data */
   guint16 hdisplay, vdisplay;
   guint32 buffer_id;

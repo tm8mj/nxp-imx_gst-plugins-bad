@@ -1544,7 +1544,60 @@ activate_pool_failed:
     gst_object_unref (pool);
     return FALSE;
   }
+}
 
+static GstStateChangeReturn
+gst_kms_sink_change_state (GstElement * element, GstStateChange transition)
+{
+  GstKMSSink *self;
+  GstStateChangeReturn ret = GST_STATE_CHANGE_SUCCESS;
+
+  GST_DEBUG ("changing state: %s => %s",
+      gst_element_state_get_name (GST_STATE_TRANSITION_CURRENT (transition)),
+      gst_element_state_get_name (GST_STATE_TRANSITION_NEXT (transition)));
+
+  self = GST_KMS_SINK (element);
+
+  switch (transition) {
+    case GST_STATE_CHANGE_NULL_TO_READY:
+      break;
+    case GST_STATE_CHANGE_READY_TO_PAUSED:
+      break;
+    case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
+      break;
+    default:
+      break;
+  }
+
+  ret = GST_ELEMENT_CLASS (parent_class)->change_state (element, transition);
+  if (ret == GST_STATE_CHANGE_FAILURE)
+    return ret;
+
+  switch (transition) {
+    case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
+    {
+      self->run_time = gst_element_get_start_time (element);
+      break;
+    }
+    case GST_STATE_CHANGE_PAUSED_TO_READY:
+    {
+      break;
+    }
+    case GST_STATE_CHANGE_READY_TO_NULL:
+      if (self->run_time > 0) {
+        g_print ("Total showed frames (%lld), playing for (%"GST_TIME_FORMAT"), fps (%.3f).\n",
+                self->frame_showed, GST_TIME_ARGS (self->run_time),
+                (gfloat)GST_SECOND * self->frame_showed / self->run_time);
+      }
+
+      self->frame_showed = 0;
+      self->run_time = 0;
+      break;
+    default:
+      break;
+  }
+
+  return ret;
 }
 
 static GstBuffer *
@@ -1794,6 +1847,8 @@ sync_frame:
   GST_OBJECT_UNLOCK (self);
   res = GST_FLOW_OK;
 
+  self->frame_showed++;
+
 bail:
   gst_buffer_unref (buffer);
   return res;
@@ -2013,6 +2068,8 @@ gst_kms_sink_init (GstKMSSink * sink)
   gst_poll_fd_init (&sink->pollfd);
   sink->poll = gst_poll_new (TRUE);
   gst_video_info_init (&sink->vinfo);
+  sink->frame_showed = 0;
+  sink->run_time = 0;
 }
 
 static void
@@ -2037,6 +2094,7 @@ gst_kms_sink_class_init (GstKMSSinkClass * klass)
       gst_pad_template_new ("sink", GST_PAD_SINK, GST_PAD_ALWAYS, caps));
   gst_caps_unref (caps);
 
+  element_class->change_state = GST_DEBUG_FUNCPTR (gst_kms_sink_change_state);
   basesink_class->start = GST_DEBUG_FUNCPTR (gst_kms_sink_start);
   basesink_class->stop = GST_DEBUG_FUNCPTR (gst_kms_sink_stop);
   basesink_class->set_caps = GST_DEBUG_FUNCPTR (gst_kms_sink_set_caps);
