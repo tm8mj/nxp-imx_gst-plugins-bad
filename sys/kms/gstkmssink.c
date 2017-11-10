@@ -100,7 +100,8 @@ enum
   PROP_DISPLAY_HEIGHT,
   PROP_CONNECTOR_PROPS,
   PROP_PLANE_PROPS,
-  PROP_N,
+  PROP_GLOBAL_ALPHA,
+  PROP_N
 };
 
 static GParamSpec *g_properties[PROP_N] = { NULL, };
@@ -1812,7 +1813,7 @@ gst_kms_sink_show_frame (GstVideoSink * vsink, GstBuffer * buf)
   GST_TRACE_OBJECT (self, "displaying fb %d", fb_id);
 
   if (!self->is_alpha_set) {
-    gst_kms_sink_set_primary_alpha (self, 0);
+    gst_kms_sink_set_primary_alpha (self, self->global_alpha);
     self->is_alpha_set = TRUE;
   }
 
@@ -2042,6 +2043,9 @@ gst_kms_sink_set_property (GObject * object, guint prop_id,
 
       break;
     }
+    case PROP_GLOBAL_ALPHA:
+      sink->global_alpha = g_value_get_int (value);
+      break;
     default:
       if (!gst_video_overlay_set_property (object, PROP_N, prop_id, value))
         G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -2094,6 +2098,8 @@ gst_kms_sink_get_property (GObject * object, guint prop_id,
       break;
     case PROP_PLANE_PROPS:
       gst_value_set_structure (value, sink->plane_props);
+    case PROP_GLOBAL_ALPHA:
+      g_value_set_int (value, sink->global_alpha);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -2129,6 +2135,7 @@ gst_kms_sink_init (GstKMSSink * sink)
   gst_video_info_init (&sink->vinfo);
   sink->frame_showed = 0;
   sink->run_time = 0;
+  sink->global_alpha = 0;
 }
 
 static void
@@ -2295,6 +2302,14 @@ gst_kms_sink_class_init (GstKMSSinkClass * klass)
       g_param_spec_boxed ("plane-properties", "Connector Plane",
       "Additional properties for the plane",
       GST_TYPE_STRUCTURE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+   /**
+   * kmssink:global-alpha:
+   *
+   * configure global alpha on mscale
+   */
+  g_properties[PROP_GLOBAL_ALPHA] = g_param_spec_int ("global-alpha",
+      "global alpha", "global alpha", 0, 255, 0,
+      G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_CONSTRUCT);
 
   g_object_class_install_properties (gobject_class, PROP_N, g_properties);
 
