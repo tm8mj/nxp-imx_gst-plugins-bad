@@ -1850,7 +1850,8 @@ retry_set_plane:
       goto retry_set_plane;
     }
     goto set_plane_failed;
-  }
+  } else
+    goto done;
 
 sync_frame:
   /* Wait for the previous frame to complete redraw */
@@ -1859,6 +1860,7 @@ sync_frame:
     goto bail;
   }
 
+done:
   if (buffer != self->last_buffer)
     gst_buffer_replace (&self->last_buffer, buffer);
   g_clear_pointer (&self->tmp_kmsmem, gst_memory_unref);
