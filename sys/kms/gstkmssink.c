@@ -1885,7 +1885,8 @@ retry_set_plane:
       goto retry_set_plane;
     }
     goto set_plane_failed;
-  }
+  } else
+    goto done;
 
 sync_frame:
   /* Wait for the previous frame to complete redraw */
@@ -1895,6 +1896,7 @@ sync_frame:
   }
 
   /* Save the rendered buffer and its metadata in case a redraw is needed */
+done:
   if (buffer != self->last_buffer) {
     gst_buffer_replace (&self->last_buffer, buffer);
     self->last_width = GST_VIDEO_SINK_WIDTH (self);
