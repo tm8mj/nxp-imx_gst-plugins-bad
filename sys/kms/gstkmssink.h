@@ -71,6 +71,7 @@ struct _GstKMSSink {
 
   /* global alpha */
   gboolean is_alpha_set;
+  guint global_alpha;
 
   gboolean modesetting_enabled;
   gboolean restore_crtc;
