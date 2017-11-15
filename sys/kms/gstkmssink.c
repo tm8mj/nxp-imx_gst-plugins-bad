@@ -1749,7 +1749,11 @@ dump_hdr10meta (GstKMSSink *self, GstBuffer * buf)
 {
 
   GstVideoHdr10Meta *meta = NULL;
-  meta = gst_buffer_get_video_hdr10_meta (buf);
+
+  /* buf could be NULL when resize */
+  if (buf)
+    meta = gst_buffer_get_video_hdr10_meta (buf);
+
   if (meta){
     /* TODO: just dump temporarily, to do configure to drm driver for hdr10 in future */
     GST_INFO_OBJECT (self, "redPrimary x=%d y=%d", meta->hdr10meta.redPrimary[0], meta->hdr10meta.redPrimary[1]);
