@@ -435,6 +435,7 @@ check_scaleable (GstKMSSink * self)
   gint result;
   guint32 fb_id;
   guint32 width, height;
+  guint32 crtc_w, crtc_h;
   GstKMSMemory *kmsmem = NULL;
 
   if (!self->can_scale)
@@ -453,9 +454,11 @@ check_scaleable (GstKMSSink * self)
 
   width = GST_VIDEO_INFO_WIDTH (&self->vinfo);
   height = GST_VIDEO_INFO_HEIGHT (&self->vinfo);
+  crtc_w = MIN (width / 2, self->hdisplay);
+  crtc_h = MIN (height / 2, self->vdisplay);
 
   result = drmModeSetPlane (self->ctrl_fd, self->plane_id, self->crtc_id, fb_id, 0,
-      0, 0, width/2, height/2,
+      0, 0, crtc_w, crtc_h,
       0, 0, width << 16, height << 16);
   if (result) {
     self->can_scale = FALSE;
