@@ -441,13 +441,14 @@ gst_kms_allocator_new (int fd)
  * which are relative to the GstBuffer start. */
 static gboolean
 gst_kms_allocator_add_fb (GstKMSAllocator * alloc, GstKMSMemory * kmsmem,
-    gsize in_offsets[GST_VIDEO_MAX_PLANES], GstVideoInfo * vinfo)
+    gint64 drm_modifier, gsize in_offsets[GST_VIDEO_MAX_PLANES], GstVideoInfo * vinfo)
 {
   gint i, ret;
   gint num_planes = GST_VIDEO_INFO_N_PLANES (vinfo);
   guint32 w, h, fmt, bo_handles[4] = { 0, };
   guint32 pitches[4] = { 0, };
   guint32 offsets[4] = { 0, };
+  guint64 modifier[4] = { 0, };
 
   if (kmsmem->fb_id)
     return TRUE;
@@ -464,13 +465,20 @@ gst_kms_allocator_add_fb (GstKMSAllocator * alloc, GstKMSMemory * kmsmem,
 
     pitches[i] = GST_VIDEO_INFO_PLANE_STRIDE (vinfo, i);
     offsets[i] = in_offsets[i];
+    modifier[i] = drm_modifier;
   }
 
   GST_DEBUG_OBJECT (alloc, "bo handles: %d, %d, %d, %d", bo_handles[0],
       bo_handles[1], bo_handles[2], bo_handles[3]);
 
-  ret = drmModeAddFB2 (alloc->priv->fd, w, h, fmt, bo_handles, pitches,
-      offsets, &kmsmem->fb_id, 0);
+  if (drm_modifier) {
+    ret = drmModeAddFB2WithModifiers (alloc->priv->fd, w, h, fmt, bo_handles, pitches,
+        offsets, modifier, &kmsmem->fb_id, DRM_MODE_FB_MODIFIERS);
+  } else {
+    ret = drmModeAddFB2 (alloc->priv->fd, w, h, fmt, bo_handles, pitches,
+        offsets, &kmsmem->fb_id, 0);
+  }
+
   if (ret) {
     GST_ERROR_OBJECT (alloc, "Failed to bind to framebuffer: %s (%d)",
         g_strerror (errno), errno);
@@ -503,7 +511,7 @@ gst_kms_allocator_bo_alloc (GstAllocator * allocator, GstVideoInfo * vinfo)
   gst_memory_init (mem, GST_MEMORY_FLAG_NO_SHARE, allocator, NULL,
       kmsmem->bo->size, 0, 0, GST_VIDEO_INFO_SIZE (vinfo));
 
-  if (!gst_kms_allocator_add_fb (alloc, kmsmem, vinfo->offset, vinfo))
+  if (!gst_kms_allocator_add_fb (alloc, kmsmem, 0, vinfo->offset, vinfo))
     goto fail;
 
   return mem;
@@ -516,7 +524,7 @@ fail:
 
 GstKMSMemory *
 gst_kms_allocator_dmabuf_import (GstAllocator * allocator, gint * prime_fds,
-    gint n_planes, gsize offsets[GST_VIDEO_MAX_PLANES], GstVideoInfo * vinfo)
+    gint n_planes, gint64 drm_modifier, gsize offsets[GST_VIDEO_MAX_PLANES], GstVideoInfo * vinfo)
 {
   GstKMSAllocator *alloc;
   GstKMSMemory *kmsmem;
@@ -541,7 +549,7 @@ gst_kms_allocator_dmabuf_import (GstAllocator * allocator, gint * prime_fds,
       goto import_fd_failed;
   }
 
-  if (!gst_kms_allocator_add_fb (alloc, kmsmem, offsets, vinfo))
+  if (!gst_kms_allocator_add_fb (alloc, kmsmem, drm_modifier, offsets, vinfo))
     goto failed;
 
   for (i = 0; i < n_planes; i++) {
