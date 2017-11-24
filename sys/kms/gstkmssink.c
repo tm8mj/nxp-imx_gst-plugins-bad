@@ -50,6 +50,7 @@
 #include <gst/video/video.h>
 #include <gst/video/videooverlay.h>
 #include <gst/allocators/gstdmabuf.h>
+#include <gst/allocators/gstdmabufmeta.h>
 
 #include <drm.h>
 #include <xf86drm.h>
@@ -1290,6 +1291,7 @@ gst_kms_sink_propose_allocation (GstBaseSink * bsink, GstQuery * query)
   gboolean need_pool;
   GstVideoInfo vinfo;
   GstBufferPool *pool;
+  guint64 drm_modifier;
   gsize size;
 
   self = GST_KMS_SINK (bsink);
@@ -1326,6 +1328,9 @@ gst_kms_sink_propose_allocation (GstBaseSink * bsink, GstQuery * query)
 
   gst_query_add_allocation_meta (query, GST_VIDEO_META_API_TYPE, NULL);
   gst_query_add_allocation_meta (query, GST_VIDEO_CROP_META_API_TYPE, NULL);
+
+  drm_modifier = DRM_FORMAT_MOD_AMPHION_TILED;
+  gst_query_add_allocation_dmabuf_meta (query, drm_modifier);
 
   return TRUE;
 
@@ -1430,6 +1435,8 @@ gst_kms_sink_import_dmabuf (GstKMSSink * self, GstBuffer * inbuf,
 {
   gint prime_fds[GST_VIDEO_MAX_PLANES] = { 0, };
   GstVideoMeta *meta;
+  GstDmabufMeta *dmabuf_meta;
+  gint64 drm_modifier = 0;
   guint i, n_mem, n_planes;
   GstKMSMemory *kmsmem;
   guint mems_idx[GST_VIDEO_MAX_PLANES];
@@ -1446,6 +1453,9 @@ gst_kms_sink_import_dmabuf (GstKMSSink * self, GstBuffer * inbuf,
   n_planes = GST_VIDEO_INFO_N_PLANES (&self->vinfo);
   n_mem = gst_buffer_n_memory (inbuf);
   meta = gst_buffer_get_video_meta (inbuf);
+  dmabuf_meta = gst_buffer_get_dmabuf_meta (inbuf);
+  if (dmabuf_meta)
+    drm_modifier = dmabuf_meta->drm_modifier;
 
   GST_TRACE_OBJECT (self, "Found a dmabuf with %u planes and %u memories",
       n_planes, n_mem);
@@ -1502,7 +1512,7 @@ gst_kms_sink_import_dmabuf (GstKMSSink * self, GstBuffer * inbuf,
       prime_fds[1], prime_fds[2], prime_fds[3]);
 
   kmsmem = gst_kms_allocator_dmabuf_import (self->allocator,
-      prime_fds, n_planes, mems_skip, &self->vinfo);
+      prime_fds, n_planes, drm_modifier, mems_skip, &self->vinfo);
   if (!kmsmem)
     return FALSE;
 
