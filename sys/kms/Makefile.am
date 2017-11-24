@@ -14,6 +14,8 @@ libgstkms_la_CFLAGS = 			\
 	$(GST_ALLOCATORS_CFLAGS)		\
 	$(GST_CFLAGS) 				\
 	$(KMS_DRM_CFLAGS) 			\
+	-I$(top_srcdir)/gst-libs \
+	-I$(top_builddir)/gst-libs \
 	$(NULL)
 
 libgstkms_la_LIBADD = 			\
