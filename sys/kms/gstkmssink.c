@@ -1595,7 +1595,7 @@ gst_kms_sink_show_frame (GstVideoSink * vsink, GstBuffer * buf)
     goto sync_frame;
   }
 
-  if ((crop = gst_buffer_get_video_crop_meta (buf))) {
+  if ((crop = gst_buffer_get_video_crop_meta (buffer))) {
     GstVideoInfo vinfo = self->vinfo;
     vinfo.width = crop->width;
     vinfo.height = crop->height;
