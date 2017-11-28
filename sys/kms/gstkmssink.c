@@ -1329,6 +1329,7 @@ wrap_mem:
   if (!*outbuf)
     return FALSE;
   gst_buffer_append_memory (*outbuf, gst_memory_ref (GST_MEMORY_CAST (kmsmem)));
+  gst_buffer_copy_into (*outbuf, inbuf, GST_BUFFER_COPY_METADATA, 0, -1);
   gst_buffer_add_parent_buffer_meta (*outbuf, inbuf);
 
   return TRUE;
@@ -1482,6 +1483,8 @@ gst_kms_sink_get_input_buffer (GstKMSSink * self, GstBuffer * inbuf)
   gst_video_frame_unmap (&inframe);
   if (!success)
     goto error_copy_buffer;
+
+  gst_buffer_copy_into (buf, inbuf, GST_BUFFER_COPY_METADATA, 0, -1);
 
   return buf;
 
