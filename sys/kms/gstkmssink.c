@@ -438,7 +438,10 @@ check_scaleable (GstKMSSink * self)
   guint32 crtc_w, crtc_h;
   GstKMSMemory *kmsmem = NULL;
 
-  if (!self->can_scale)
+  /* we assume driver can scale at initialize,
+   * if scale is checked or can not scale, we
+   * don't need check again */
+  if (self->scale_checked || !self->can_scale)
     return;
 
   if (self->conn_id < 0)
@@ -465,6 +468,7 @@ check_scaleable (GstKMSSink * self)
     GST_INFO_OBJECT (self, "scale is not support");
   }
 
+  self->scale_checked = TRUE;
   g_clear_pointer (&kmsmem, gst_memory_unref);
 }
 
@@ -2138,6 +2142,7 @@ gst_kms_sink_init (GstKMSSink * sink)
   sink->conn_id = -1;
   sink->plane_id = -1;
   sink->can_scale = TRUE;
+  sink->scale_checked = FALSE;
   gst_poll_fd_init (&sink->pollfd);
   sink->poll = gst_poll_new (TRUE);
   gst_video_info_init (&sink->vinfo);

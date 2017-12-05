@@ -68,6 +68,7 @@ struct _GstKMSSink {
   gboolean has_prime_export;
   gboolean has_async_page_flip;
   gboolean can_scale;
+  gboolean scale_checked;
 
   /* global alpha */
   gboolean is_alpha_set;
