@@ -444,7 +444,7 @@ check_scaleable (GstKMSSink * self)
   if (self->scale_checked || !self->can_scale)
     return;
 
-  if (self->conn_id < 0)
+  if (self->conn_id < 0 || !self->display_connected)
     return;
 
   kmsmem = (GstKMSMemory *) gst_kms_allocator_bo_alloc (self->allocator, &self->vinfo);
@@ -571,7 +571,7 @@ ensure_allowed_caps (GstKMSSink * self, drmModeConnector * conn,
   if (!out_caps)
     return FALSE;
 
-  if (conn && self->modesetting_enabled)
+  if (conn && self->modesetting_enabled && self->display_connected)
     count_modes = conn->count_modes;
   else
     count_modes = 1;
@@ -827,11 +827,19 @@ gst_kms_sink_start (GstBaseSink * bsink)
   if (!conn)
     goto connector_failed;
 
+  if (conn->connection == DRM_MODE_CONNECTED)
+    self->display_connected = TRUE;
+  else
+    self->display_connected = FALSE;
+
+  GST_DEBUG_OBJECT (self, "display connection status: %s",
+      self->display_connected ? "Connected" : "disconnected");
+
   crtc = find_crtc_for_connector (self->fd, res, conn, &self->pipe);
   if (!crtc)
     goto crtc_failed;
 
-  if (!crtc->mode_valid || self->modesetting_enabled) {
+  if ((!crtc->mode_valid || self->modesetting_enabled) && self->display_connected) {
     GST_DEBUG_OBJECT (self, "enabling modesetting");
     self->modesetting_enabled = TRUE;
     universal_planes = TRUE;
@@ -1798,6 +1806,11 @@ gst_kms_sink_show_frame (GstVideoSink * vsink, GstBuffer * buf)
   self = GST_KMS_SINK (vsink);
 
   res = GST_FLOW_ERROR;
+
+  if (!self->display_connected) {
+    GST_WARNING_OBJECT (self, "display not connected, drop this buffer");
+    return GST_FLOW_OK;
+  }
 
   if (buf) {
     buffer = gst_kms_sink_get_input_buffer (self, buf);

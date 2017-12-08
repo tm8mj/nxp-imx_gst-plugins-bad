@@ -79,6 +79,8 @@ struct _GstKMSSink {
   GstStructure *connector_props;
   GstStructure *plane_props;
 
+  gboolean display_connected;
+
   GstVideoInfo vinfo;
   GstCaps *allowed_caps;
   GstBufferPool *pool;
