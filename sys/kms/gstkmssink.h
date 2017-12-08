@@ -74,6 +74,7 @@ struct _GstKMSSink {
   guint global_alpha;
 
   gboolean modesetting_enabled;
+  gboolean display_connected;
 
   GstVideoInfo vinfo;
   GstCaps *allowed_caps;
