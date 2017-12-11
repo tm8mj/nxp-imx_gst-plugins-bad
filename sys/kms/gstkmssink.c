@@ -1664,8 +1664,8 @@ retry_set_plane:
 
   /* to make sure it can be show when driver don't support scale */
   if (!self->can_scale) {
-    result.w = src.w;
-    result.h = src.h;
+    src.w = result.w;
+    src.h = result.h;
   }
 
   GST_TRACE_OBJECT (self,
