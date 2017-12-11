@@ -434,8 +434,8 @@ check_scaleable (GstKMSSink * self)
 
   width = GST_VIDEO_INFO_WIDTH (&self->vinfo);
   height = GST_VIDEO_INFO_HEIGHT (&self->vinfo);
-  crtc_w = MIN (width / 2, self->hdisplay);
-  crtc_h = MIN (height / 2, self->vdisplay);
+  crtc_w = self->preferred_rect.w;
+  crtc_h = self->preferred_rect.h;
 
   result = drmModeSetPlane (self->ctrl_fd, self->plane_id, self->crtc_id, fb_id, 0,
       0, 0, crtc_w, crtc_h,
@@ -1041,8 +1041,6 @@ gst_kms_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
 
   self->vinfo = vinfo;
 
-  check_scaleable (self);
-
   GST_OBJECT_LOCK (self);
   if (self->reconfigure) {
     self->reconfigure = FALSE;
@@ -1057,6 +1055,8 @@ gst_kms_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
   }
 
   GST_DEBUG_OBJECT (self, "negotiated caps = %" GST_PTR_FORMAT, caps);
+
+  check_scaleable (self);
 
   return TRUE;
 
