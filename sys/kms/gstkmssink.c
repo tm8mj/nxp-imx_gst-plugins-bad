@@ -1631,7 +1631,12 @@ gst_kms_sink_change_state (GstElement * element, GstStateChange transition)
       self->is_alpha_set = FALSE;
       break;
     case GST_STATE_CHANGE_READY_TO_PAUSED:
+    {
+      guint i;
+      for (i = 0; i < DEFAULT_HOLD_BUFFER_NUM; i++)
+        self->hold_buf[i] = NULL;
       break;
+    }
     case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
       break;
     default:
@@ -1650,7 +1655,12 @@ gst_kms_sink_change_state (GstElement * element, GstStateChange transition)
     }
     case GST_STATE_CHANGE_PAUSED_TO_READY:
     {
+      guint i;
       gst_kms_sink_set_primary_alpha (self, 255);
+      for (i = 0; i < DEFAULT_HOLD_BUFFER_NUM; i++) {
+        if (self->hold_buf[i])
+          gst_buffer_unref (self->hold_buf[i]);
+      }
       break;
     }
     case GST_STATE_CHANGE_READY_TO_NULL:
@@ -1935,6 +1945,18 @@ done:
   self->frame_showed++;
 
 bail:
+  if (buf) {
+    guint i;
+
+    if (self->hold_buf[DEFAULT_HOLD_BUFFER_NUM-1])
+      gst_buffer_unref (self->hold_buf[DEFAULT_HOLD_BUFFER_NUM-1]);
+
+    for (i = DEFAULT_HOLD_BUFFER_NUM - 1; i > 0; i--)
+      self->hold_buf[i] = self->hold_buf[i-1];
+
+    self->hold_buf[0] = gst_buffer_ref (buf);
+  }
+
   gst_buffer_unref (buffer);
   return res;
 
