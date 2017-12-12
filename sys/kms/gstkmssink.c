@@ -1055,6 +1055,12 @@ gst_kms_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
     self->original_heigth = GST_VIDEO_INFO_HEIGHT (&self->vinfo);
   }
 
+  if (self->original_heigth != GST_VIDEO_INFO_WIDTH (&self->vinfo)
+      || self->original_heigth != GST_VIDEO_INFO_HEIGHT (&self->vinfo)) {
+    self->original_width = GST_VIDEO_INFO_WIDTH (&self->vinfo);
+    self->original_heigth = GST_VIDEO_INFO_HEIGHT (&self->vinfo);
+  }
+
   GST_DEBUG_OBJECT (self, "negotiated caps = %" GST_PTR_FORMAT, caps);
 
   return TRUE;
@@ -1678,7 +1684,24 @@ retry_set_plane:
       src.x << 16, src.y << 16, src.w << 16, src.h << 16);
   if (ret) {
     if (self->can_scale) {
-      self->can_scale = FALSE;
+      //self->can_scale = FALSE;
+
+      /*FIXME: work around for mscale driver scale limitation */
+      gint max_width, max_height, min_width, min_height;
+      max_width = self->original_width * 3;
+      max_height = self->original_heigth * 3;
+      min_width = self->original_width / 3 + 1;
+      min_height = self->original_heigth / 3 + 1;
+      if (dst.w > max_width)
+        dst.w = max_width;
+      else if (dst.w < min_width)
+        dst.w = min_width;
+
+      if (dst.h > max_height)
+        dst.h = max_height;
+      else if (dst.h < min_height)
+        dst.h = min_height;
+
       goto retry_set_plane;
     }
     goto set_plane_failed;
