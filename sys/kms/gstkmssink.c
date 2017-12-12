@@ -133,8 +133,8 @@ commit:
 
     self->pending_rect.x = x + result.x;
     self->pending_rect.y = y + result.y;
-    self->pending_rect.w = result.w;
-    self->pending_rect.h = result.h;
+    self->pending_rect.w = GST_ROUND_UP_4 (result.w);
+    self->pending_rect.h = GST_ROUND_UP_4 (result.h);
 
     GST_DEBUG_OBJECT (self, "pending resize to (%d,%d)-(%dx%d)",
         self->pending_rect.x, self->pending_rect.y,
