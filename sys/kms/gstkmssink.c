@@ -51,6 +51,7 @@
 #include <gst/video/videooverlay.h>
 #include <gst/allocators/gstdmabuf.h>
 #include <gst/allocators/gstdmabufmeta.h>
+#include <gst/allocators/gstphymemmeta.h>
 
 #include <drm.h>
 #include <xf86drm.h>
@@ -1292,6 +1293,9 @@ gst_kms_sink_propose_allocation (GstBaseSink * bsink, GstQuery * query)
   GstVideoInfo vinfo;
   GstBufferPool *pool;
   guint64 drm_modifier;
+  drmModeObjectPropertiesPtr props = NULL;
+  drmModePropertyPtr prop = NULL;
+  guint i;
   gsize size;
 
   self = GST_KMS_SINK (bsink);
@@ -1331,6 +1335,22 @@ gst_kms_sink_propose_allocation (GstBaseSink * bsink, GstQuery * query)
 
   drm_modifier = DRM_FORMAT_MOD_AMPHION_TILED;
   gst_query_add_allocation_dmabuf_meta (query, drm_modifier);
+
+  props = drmModeObjectGetProperties (self->fd, self->plane_id, DRM_MODE_OBJECT_PLANE);
+  for (i = 0; i < props->count_props; ++i) {
+    prop = drmModeGetProperty(self->fd, props->props[i]);
+    if (!strcmp(prop->name, "dtrc_table_ofs")) {
+      GST_DEBUG ("has dtrc_table_ofs property, can support VSI tile format");
+      drm_modifier = DRM_FORMAT_MOD_VSI_G1_TILED;
+      gst_query_add_allocation_dmabuf_meta (query, drm_modifier);
+      drm_modifier = DRM_FORMAT_MOD_VSI_G2_TILED;
+      gst_query_add_allocation_dmabuf_meta (query, drm_modifier);
+      drm_modifier = DRM_FORMAT_MOD_VSI_G2_TILED_COMPRESSED;
+      gst_query_add_allocation_dmabuf_meta (query, drm_modifier);
+    }
+    drmModeFreeProperty (prop);
+    prop = NULL;
+  }
 
   return TRUE;
 
@@ -1573,7 +1593,7 @@ activate_pool_failed:
 }
 
 static void
-gst_kms_sink_set_primary_alpha (GstKMSSink * self, guint alpha)
+gst_kms_sink_set_kmsproperty (GstKMSSink * self, guint alpha, guint64 dtrc_table_ofs)
 {
   drmModeRes *res = NULL;
   drmModePlaneRes *pres = NULL;
@@ -1581,6 +1601,18 @@ gst_kms_sink_set_primary_alpha (GstKMSSink * self, guint alpha)
   drmModeObjectPropertiesPtr props = NULL;
   drmModePropertyPtr prop = NULL;
   guint i;
+
+  props = drmModeObjectGetProperties (self->fd, self->plane_id, DRM_MODE_OBJECT_PLANE);
+  for (i = 0; i < props->count_props; ++i) {
+    prop = drmModeGetProperty(self->fd, props->props[i]);
+    if (!strcmp(prop->name, "dtrc_table_ofs") && dtrc_table_ofs) {
+      GST_DEBUG ("set DTRC table offset %lld to primary plane %d property %d",
+          dtrc_table_ofs, self->plane_id, prop->prop_id);
+      drmModeObjectSetProperty (self->ctrl_fd, self->plane_id, DRM_MODE_OBJECT_PLANE, prop->prop_id, dtrc_table_ofs);
+    }
+    drmModeFreeProperty (prop);
+    prop = NULL;
+  }
 
   res = drmModeGetResources (self->fd);
   if (!res)
@@ -1598,18 +1630,14 @@ gst_kms_sink_set_primary_alpha (GstKMSSink * self, guint alpha)
 
   props = drmModeObjectGetProperties (self->fd, plane->plane_id, DRM_MODE_OBJECT_PLANE);
   for (i = 0; i < props->count_props; ++i) {
-     prop = drmModeGetProperty(self->fd, props->props[i]);
-      if (!strcmp(prop->name, "alpha"))
-         break;
+    prop = drmModeGetProperty(self->fd, props->props[i]);
+    if (!strcmp(prop->name, "alpha")) {
+      GST_DEBUG ("set global alpha %d to primary plane %d property %d",
+          alpha, plane->plane_id, prop->prop_id);
+      drmModeObjectSetProperty (self->ctrl_fd, plane->plane_id, DRM_MODE_OBJECT_PLANE, prop->prop_id, alpha);
+    }
     drmModeFreeProperty (prop);
     prop = NULL;
-  }
-
-  if (prop) {
-    GST_DEBUG ("set global alpha %d to primary plane %d property %d",
-        alpha, plane->plane_id, prop->prop_id);
-    drmModeObjectSetProperty (self->ctrl_fd, plane->plane_id, DRM_MODE_OBJECT_PLANE, prop->prop_id, alpha);
-    drmModeFreeProperty (prop);
   }
 
 out:
@@ -1638,7 +1666,7 @@ gst_kms_sink_change_state (GstElement * element, GstStateChange transition)
 
   switch (transition) {
     case GST_STATE_CHANGE_NULL_TO_READY:
-      self->is_alpha_set = FALSE;
+      self->is_kmsproperty_set = FALSE;
       break;
     case GST_STATE_CHANGE_READY_TO_PAUSED:
     {
@@ -1666,7 +1694,7 @@ gst_kms_sink_change_state (GstElement * element, GstStateChange transition)
     case GST_STATE_CHANGE_PAUSED_TO_READY:
     {
       guint i;
-      gst_kms_sink_set_primary_alpha (self, 255);
+      gst_kms_sink_set_kmsproperty (self, 255, 0);
       for (i = 0; i < DEFAULT_HOLD_BUFFER_NUM; i++) {
         if (self->hold_buf[i])
           gst_buffer_unref (self->hold_buf[i]);
@@ -1821,6 +1849,8 @@ gst_kms_sink_show_frame (GstVideoSink * vsink, GstBuffer * buf)
   gint video_width, video_height;
   GstVideoRectangle dst = { 0, };
   GstVideoRectangle result;
+  GstPhyMemMeta *phymemmeta = NULL;
+  guint64 dtrc_table_ofs;
   GstFlowReturn res;
 
   dump_hdr10meta (GST_KMS_SINK (vsink), buf);
@@ -1857,9 +1887,18 @@ gst_kms_sink_show_frame (GstVideoSink * vsink, GstBuffer * buf)
 
   GST_TRACE_OBJECT (self, "displaying fb %d", fb_id);
 
-  if (!self->is_alpha_set) {
-    gst_kms_sink_set_primary_alpha (self, self->global_alpha);
-    self->is_alpha_set = TRUE;
+  if (!self->is_kmsproperty_set) {
+    phymemmeta = GST_PHY_MEM_META_GET (buffer);
+    if (phymemmeta) {
+      GST_DEBUG_OBJECT (self, "physical memory meta x_padding: %d y_padding: %d \
+          RFC luma offset: %d chroma offset: %d",
+          phymemmeta->x_padding, phymemmeta->y_padding, phymemmeta->rfc_luma_offset, phymemmeta->rfc_chroma_offset);
+      dtrc_table_ofs = phymemmeta->rfc_luma_offset | ((guint64)phymemmeta->rfc_chroma_offset << 32);
+      gst_kms_sink_set_kmsproperty (self, self->global_alpha, dtrc_table_ofs);
+    } else
+      gst_kms_sink_set_kmsproperty (self, self->global_alpha, 0);
+
+    self->is_kmsproperty_set = TRUE;
   }
 
   GST_OBJECT_LOCK (self);
