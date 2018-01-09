@@ -72,7 +72,7 @@ struct _GstKMSSink {
   gboolean scale_checked;
 
   /* global alpha */
-  gboolean is_alpha_set;
+  gboolean is_kmsproperty_set;
   guint global_alpha;
 
   gboolean modesetting_enabled;
