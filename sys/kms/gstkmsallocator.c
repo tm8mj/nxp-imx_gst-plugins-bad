@@ -33,6 +33,7 @@
 #include <string.h>
 #include <sys/mman.h>
 #include <unistd.h>
+#include <drm_fourcc.h>
 
 /* it needs to be below because is internal to libdrm */
 #include <drm.h>
@@ -398,6 +399,13 @@ gst_kms_allocator_add_fb (GstKMSAllocator * alloc, GstKMSMemory * kmsmem,
     modifier[i] = drm_modifier;
     GST_DEBUG_OBJECT (alloc, "Create FB plane %i with stride %u and offset %u",
         i, pitches[i], offsets[i]);
+  }
+
+  if (drm_modifier == DRM_FORMAT_MOD_AMPHION_TILED) {
+    /* for qxp, dpu need fb width align to 8
+     * and height align to 256 */
+    w = GST_ROUND_UP_8 (w);
+    h = GST_ROUND_UP_N (h, 256);
   }
 
   if (drm_modifier) {
