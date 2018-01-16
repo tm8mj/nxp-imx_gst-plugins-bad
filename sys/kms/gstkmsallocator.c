@@ -33,6 +33,7 @@
 #include <stdlib.h>
 #include <sys/mman.h>
 #include <unistd.h>
+#include <drm_fourcc.h>
 
 /* it needs to be below because is internal to libdrm */
 #include <drm.h>
@@ -470,6 +471,12 @@ gst_kms_allocator_add_fb (GstKMSAllocator * alloc, GstKMSMemory * kmsmem,
 
   GST_DEBUG_OBJECT (alloc, "bo handles: %d, %d, %d, %d", bo_handles[0],
       bo_handles[1], bo_handles[2], bo_handles[3]);
+  if (drm_modifier == DRM_FORMAT_MOD_AMPHION_TILED) {
+    /* for qxp, dpu need fb width align to 8
+     * and height align to 256 */
+    w = GST_ROUND_UP_8 (w);
+    h = GST_ROUND_UP_N (h, 256);
+  }
 
   if (drm_modifier) {
     ret = drmModeAddFB2WithModifiers (alloc->priv->fd, w, h, fmt, bo_handles, pitches,
