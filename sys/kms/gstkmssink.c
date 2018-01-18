@@ -109,6 +109,8 @@ enum
 
 static GParamSpec *g_properties[PROP_N] = { NULL, };
 
+#define SCALE_RATIO_NO_LIMITATION 100000
+
 static void
 gst_kms_sink_set_render_rectangle (GstVideoOverlay * overlay,
     gint x, gint y, gint width, gint height)
@@ -479,6 +481,15 @@ check_scaleable (GstKMSSink * self)
 
   if (self->conn_id < 0 || !self->display_connected)
     return;
+
+  /* FIXME: for dpu, we can only hard code the scale ratio,
+   * dpu has no limitation when do upscale but can not support
+   * downscale */
+  if (strcmp (get_imx_drm_device_name(), "DPU") == 0) {
+    self->downscale_ratio = 1;
+    self->upscale_ratio = SCALE_RATIO_NO_LIMITATION;
+    return;
+  }
 
   gst_video_info_init (&vinfo);
   gst_video_info_set_format (&vinfo, GST_VIDEO_FORMAT_NV12, self->hdisplay, self->vdisplay);
@@ -2003,14 +2014,14 @@ retry_set_plane:
   if ((result.x + result.w) > self->hdisplay) {
     gint crop_width = self->hdisplay - result.x;
     if (crop_width > 0)
-      src.w = crop_width * src.w / result.w;
+      src.w = GST_ROUND_UP_2 (crop_width * src.w / result.w);
     result.w = crop_width;
   }
 
   if ((result.y + result.h) > self->vdisplay) {
     gint crop_height = self->vdisplay - result.y;
     if (crop_height > 0)
-      src.h = crop_height * src.h / result.h;
+      src.h = GST_ROUND_UP_2 (crop_height * src.h / result.h);
     result.h = crop_height;
   }
 
