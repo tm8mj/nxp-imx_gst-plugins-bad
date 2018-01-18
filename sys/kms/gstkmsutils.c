@@ -28,6 +28,8 @@
 #endif
 
 #include <drm_fourcc.h>
+#include <dirent.h>
+#include <string.h>
 
 #include "gstkmsutils.h"
 
@@ -248,4 +250,39 @@ gst_video_calculate_device_ratio (guint dev_width, guint dev_height,
 
   if (dpy_par_d)
     *dpy_par_d = device_par_map[index][windex ^ 1];
+}
+
+const gchar *
+get_imx_drm_device_name (void)
+{
+  struct dirent **entry_list;
+  guint count;
+  guint i;
+  const gchar * device;
+
+  count = scandir ("/proc/device-tree", &entry_list, 0, alphasort);
+  if (count < 0)
+    return NULL;
+
+  for (i = 0; i < count; i++) {
+    struct dirent *entry;
+
+    entry = entry_list[i];
+    if (strstr (entry->d_name, "dpu@")) {
+      device = "DPU";
+      break;
+    }
+
+    if (strstr (entry->d_name, "dcss@")) {
+      device = "DCSS";
+      break;
+    }
+  }
+
+  for (i = 0; i < count; i++) {
+    g_free (entry_list[i]);
+  }
+  g_free (entry_list);
+
+  return device;
 }
