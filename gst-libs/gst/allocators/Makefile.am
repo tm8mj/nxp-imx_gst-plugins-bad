@@ -6,6 +6,7 @@ libgstbadallocators_@GST_API_VERSION@_include_HEADERS = \
 	badallocators.h \
 	gstphysmemory.h \
 	gstdmabufmeta.h \
+	gstphymemmeta.h \
 	gstallocatorphymem.h
 
 if USE_ION
@@ -18,6 +19,7 @@ noinst_HEADERS =
 libgstbadallocators_@GST_API_VERSION@_la_SOURCES = \
 	gstphysmemory.c \
 	gstdmabufmeta.c \
+	gstphymemmeta.c \
 	gstallocatorphymem.c
 
 if USE_ION
@@ -25,7 +27,7 @@ libgstbadallocators_@GST_API_VERSION@_la_SOURCES += \
 	gstionmemory.c
 endif
 
-libgstbadallocators_@GST_API_VERSION@_la_LIBADD = $(GST_LIBS) $(LIBM)
+libgstbadallocators_@GST_API_VERSION@_la_LIBADD = $(GST_LIBS) $(GST_BASE_LIBS) -lgstvideo-$(GST_API_VERSION) $(LIBM)
 libgstbadallocators_@GST_API_VERSION@_la_CFLAGS = $(GST_PLUGINS_BASE_CFLAGS) $(GST_CFLAGS)
 libgstbadallocators_@GST_API_VERSION@_la_LDFLAGS = $(GST_LIB_LDFLAGS) $(GST_ALL_LDFLAGS) $(GST_LT_LDFLAGS)
 
