@@ -74,6 +74,7 @@ GST_DEBUG_CATEGORY_STATIC (CAT_PERFORMANCE);
 static GstFlowReturn gst_kms_sink_show_frame (GstVideoSink * vsink,
     GstBuffer * buf);
 static void gst_kms_sink_video_overlay_init (GstVideoOverlayInterface * iface);
+static void ensure_kms_allocator (GstKMSSink * self);
 
 #define parent_class gst_kms_sink_parent_class
 G_DEFINE_TYPE_WITH_CODE (GstKMSSink, gst_kms_sink, GST_TYPE_VIDEO_SINK,
@@ -407,14 +408,44 @@ get_drm_caps (GstKMSSink * self)
   return TRUE;
 }
 
+static guint
+check_upscale (GstKMSSink * self, guint32 fb_id) {
+  guint32 src_w = self->hdisplay / 10;
+  guint32 src_h = self->vdisplay / 10;
+  guint ratio;
+
+  for (ratio = 10; ratio > 0; ratio--) {
+    if (!drmModeSetPlane (self->ctrl_fd, self->plane_id, self->crtc_id, fb_id, 0,
+          0, 0, src_w * ratio, src_h * ratio,
+          0, 0, src_w << 16, src_h << 16))
+      break;
+  }
+
+  return ratio;
+}
+
+static guint
+check_downscale (GstKMSSink * self, guint32 fb_id) {
+  guint32 src_w = self->hdisplay / 10;
+  guint32 src_h = self->vdisplay / 10;
+  guint ratio;
+
+  for (ratio = 10; ratio > 0; ratio--) {
+    if (!drmModeSetPlane (self->ctrl_fd, self->plane_id, self->crtc_id, fb_id, 0,
+          0, 0, src_w, src_h,
+          0, 0, (src_w * ratio) << 16, (src_h * ratio) << 16))
+      break;
+  }
+
+  return ratio;
+}
+
 static void
 check_scaleable (GstKMSSink * self)
 {
-  gint result;
   guint32 fb_id;
-  guint32 width, height;
-  guint32 crtc_w, crtc_h;
   GstKMSMemory *kmsmem = NULL;
+  GstVideoInfo vinfo;
 
   /* we assume driver can scale at initialize,
    * if scale is checked or can not scale, we
@@ -425,26 +456,23 @@ check_scaleable (GstKMSSink * self)
   if (self->conn_id < 0 || !self->display_connected)
     return;
 
-  kmsmem = (GstKMSMemory *) gst_kms_allocator_bo_alloc (self->allocator, &self->vinfo);
+  gst_video_info_init (&vinfo);
+  gst_video_info_set_format (&vinfo, GST_VIDEO_FORMAT_NV12, self->hdisplay, self->vdisplay);
+
+  ensure_kms_allocator (self);
+
+  kmsmem = (GstKMSMemory *) gst_kms_allocator_bo_alloc (self->allocator, &vinfo);
   if (!kmsmem)
     return;
 
   fb_id = kmsmem->fb_id;
 
   GST_INFO_OBJECT (self, "checking scaleable");
+  self->downscale_ratio = check_downscale (self, fb_id);
+  self->upscale_ratio = check_upscale (self, fb_id);
 
-  width = GST_VIDEO_INFO_WIDTH (&self->vinfo);
-  height = GST_VIDEO_INFO_HEIGHT (&self->vinfo);
-  crtc_w = self->preferred_rect.w;
-  crtc_h = self->preferred_rect.h;
-
-  result = drmModeSetPlane (self->ctrl_fd, self->plane_id, self->crtc_id, fb_id, 0,
-      0, 0, crtc_w, crtc_h,
-      0, 0, width << 16, height << 16);
-  if (result) {
-    self->can_scale = FALSE;
-    GST_INFO_OBJECT (self, "scale is not support");
-  }
+  GST_INFO_OBJECT (self, "got scale ratio: up (%d) down (%d)",
+      self->upscale_ratio, self->downscale_ratio);
 
   self->scale_checked = TRUE;
   g_clear_pointer (&kmsmem, gst_memory_unref);
@@ -744,6 +772,8 @@ retry_find_plane:
 
   GST_INFO_OBJECT (self, "display size: pixels = %dx%d / millimeters = %dx%d",
       self->hdisplay, self->vdisplay, self->mm_width, self->mm_height);
+
+  check_scaleable (self);
 
   self->pollfd.fd = self->fd;
   gst_poll_add_fd (self->poll, &self->pollfd);
@@ -1056,8 +1086,6 @@ gst_kms_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
   }
 
   GST_DEBUG_OBJECT (self, "negotiated caps = %" GST_PTR_FORMAT, caps);
-
-  check_scaleable (self);
 
   return TRUE;
 
@@ -1603,6 +1631,22 @@ dump_hdr10meta (GstKMSSink *self, GstBuffer * buf)
   }
 }
 
+static gboolean
+gst_kms_sink_check_scale_ratio (GstKMSSink * self, GstVideoRectangle dst, GstVideoRectangle src)
+{
+  gboolean can_scale = TRUE;
+  GST_INFO_OBJECT (self, "dst rectangle (%d, %d)-(%d x %d)", dst.x, dst.y, dst.w, dst.h);
+  GST_INFO_OBJECT (self, "src rectangle (%d, %d)-(%d x %d)", src.x, src.y, src.w, src.h);
+
+  can_scale = (dst.w * self->downscale_ratio >= src.w
+              && dst.w <= src.w * self->upscale_ratio
+              && dst.h * self->downscale_ratio >= src.h
+              && dst.h <= src.h * self->upscale_ratio);
+
+  GST_INFO_OBJECT (self, "can use hardware scale: %s", can_scale ? "TRUE" : "FALSE");
+  return can_scale;
+}
+
 static GstFlowReturn
 gst_kms_sink_show_frame (GstVideoSink * vsink, GstBuffer * buf)
 {
@@ -1617,6 +1661,7 @@ gst_kms_sink_show_frame (GstVideoSink * vsink, GstBuffer * buf)
   GstPhyMemMeta *phymemmeta = NULL;
   guint64 dtrc_table_ofs;
   GstFlowReturn res;
+  gboolean can_scale = TRUE;
 
   dump_hdr10meta (GST_KMS_SINK (vsink), buf);
 
@@ -1683,7 +1728,7 @@ gst_kms_sink_show_frame (GstVideoSink * vsink, GstBuffer * buf)
   dst.h = self->preferred_rect.h;
 
 retry_set_plane:
-  gst_video_sink_center_rect (src, dst, &result, self->can_scale);
+  gst_video_sink_center_rect (src, dst, &result, can_scale);
 
   result.x += self->preferred_rect.x;
   result.y += self->preferred_rect.y;
@@ -1696,25 +1741,40 @@ retry_set_plane:
     src.h = GST_VIDEO_INFO_HEIGHT (&self->vinfo);
   }
 
-  /* handle out of screen case */
-  if ((result.x + result.w) > self->hdisplay)
-    src.w = self->hdisplay - result.x;
-
-  if ((result.y + result.h) > self->vdisplay)
-    src.h = self->vdisplay - result.y;
-
-  if (src.w <= 0 || src.h <= 0) {
-    GST_WARNING_OBJECT (self, "video is out of display range");
-    goto sync_frame;
+  if (!gst_kms_sink_check_scale_ratio (self, result, src)) {
+    if (can_scale) {
+      can_scale = FALSE;
+      dst.w = MAX (self->hdisplay, src.w);
+      dst.h = MAX (self->vdisplay, src.h);
+      GST_WARNING_OBJECT (self, "try not scale");
+      goto retry_set_plane;
+    } else
+      goto check_ratio_fail;
   }
+
   GST_TRACE_OBJECT (self,
-      "before drmModeSetPlane at (%i,%i) %ix%i sourcing at (%i,%i) %ix%i",
+      "scaling result at (%i,%i) %ix%i sourcing at (%i,%i) %ix%i",
       result.x, result.y, result.w, result.h, src.x, src.y, src.w, src.h);
 
-  /* to make sure it can be show when driver don't support scale */
-  if (!self->can_scale) {
-    src.w = result.w;
-    src.h = result.h;
+  /* handle out of screen case */
+  if ((result.x + result.w) > self->hdisplay) {
+    gint crop_width = self->hdisplay - result.x;
+    if (crop_width > 0)
+      src.w = crop_width * src.w / result.w;
+    result.w = crop_width;
+  }
+
+  if ((result.y + result.h) > self->vdisplay) {
+    gint crop_height = self->vdisplay - result.y;
+    if (crop_height > 0)
+      src.h = crop_height * src.h / result.h;
+    result.h = crop_height;
+  }
+
+  if (result.w <= 0 || result.h <= 0 || src.h <= 0 || src.w <= 0) {
+    GST_WARNING_OBJECT (self, "video is out of display range, use previous area");
+    self->preferred_rect = self->last_rect;
+    goto done;
   }
 
   GST_TRACE_OBJECT (self,
@@ -1726,10 +1786,6 @@ retry_set_plane:
       /* source/cropping coordinates are given in Q16 */
       src.x << 16, src.y << 16, src.w << 16, src.h << 16);
   if (ret) {
-    if (self->can_scale) {
-      self->can_scale = FALSE;
-      goto retry_set_plane;
-    }
     goto set_plane_failed;
   } else
     goto done;
@@ -1748,6 +1804,7 @@ done:
   res = GST_FLOW_OK;
 
   self->frame_showed++;
+  self->last_rect = self->preferred_rect;
 
 bail:
   if (buf) {
@@ -1787,6 +1844,13 @@ no_disp_ratio:
     GST_OBJECT_UNLOCK (self);
     GST_ELEMENT_ERROR (self, CORE, NEGOTIATION, (NULL),
         ("Error calculating the output display ratio of the video."));
+    goto bail;
+  }
+check_ratio_fail:
+  {
+    GST_OBJECT_UNLOCK (self);
+    GST_ELEMENT_ERROR (self, RESOURCE, FAILED, (NULL),
+        ("Checking scale ratio fail."));
     goto bail;
   }
 }
@@ -1871,6 +1935,8 @@ gst_kms_sink_init (GstKMSSink * sink)
   sink->plane_id = -1;
   sink->can_scale = TRUE;
   sink->scale_checked = FALSE;
+  sink->upscale_ratio = 1;
+  sink->downscale_ratio = 1;
   gst_poll_fd_init (&sink->pollfd);
   sink->poll = gst_poll_new (TRUE);
   gst_video_info_init (&sink->vinfo);

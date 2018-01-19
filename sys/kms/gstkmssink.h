@@ -70,6 +70,8 @@ struct _GstKMSSink {
   gboolean has_async_page_flip;
   gboolean can_scale;
   gboolean scale_checked;
+  gint upscale_ratio;
+  gint downscale_ratio;
 
   /* global alpha */
   gboolean is_kmsproperty_set;
@@ -95,6 +97,7 @@ struct _GstKMSSink {
 
   /* preferred video rectangle */
   GstVideoRectangle preferred_rect;
+  GstVideoRectangle last_rect;
 
   /* reconfigure info if driver doesn't scale */
   GstVideoRectangle pending_rect;
