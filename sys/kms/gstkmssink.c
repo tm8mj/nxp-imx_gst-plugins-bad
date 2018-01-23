@@ -1673,7 +1673,8 @@ gst_kms_sink_show_frame (GstVideoSink * vsink, GstBuffer * buf)
   guint64 dtrc_table_ofs;
   GstFlowReturn res;
   gboolean can_scale = TRUE;
-
+  guint32 fmt, alignment;
+  
   dump_hdr10meta (GST_KMS_SINK (vsink), buf);
 
   self = GST_KMS_SINK (vsink);
@@ -1685,6 +1686,13 @@ gst_kms_sink_show_frame (GstVideoSink * vsink, GstBuffer * buf)
   if (!self->display_connected) {
     GST_WARNING_OBJECT (self, "display not connected, drop this buffer");
     return GST_FLOW_OK;
+  }
+
+  if (strcmp (get_imx_drm_device_name(), "DPU") == 0) {
+    fmt = gst_drm_format_from_video (GST_VIDEO_INFO_FORMAT (&self->vinfo));
+    alignment = gst_drm_alignment_from_drm_format (fmt);
+  } else {
+    alignment = 1;
   }
 
   if (buf)
@@ -1741,15 +1749,15 @@ gst_kms_sink_show_frame (GstVideoSink * vsink, GstBuffer * buf)
 retry_set_plane:
   gst_video_sink_center_rect (src, dst, &result, can_scale);
 
-  result.x += self->preferred_rect.x;
-  result.y += self->preferred_rect.y;
+  result.x = GST_ROUND_DOWN_N (result.x + self->preferred_rect.x, alignment);
+  result.y = GST_ROUND_DOWN_N (result.y + self->preferred_rect.y, alignment);;
 
   if (crop) {
     src.w = crop->width;
     src.h = crop->height;
   } else {
-    src.w = GST_VIDEO_INFO_WIDTH (&self->vinfo);
-    src.h = GST_VIDEO_INFO_HEIGHT (&self->vinfo);
+    src.w = GST_ROUND_DOWN_N (GST_VIDEO_INFO_WIDTH (&self->vinfo), alignment);
+    src.h = GST_ROUND_DOWN_N (GST_VIDEO_INFO_HEIGHT (&self->vinfo), alignment);
   }
 
   if (!gst_kms_sink_check_scale_ratio (self, result, src)) {
