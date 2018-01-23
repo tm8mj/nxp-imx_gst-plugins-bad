@@ -446,7 +446,7 @@ gst_kms_allocator_add_fb (GstKMSAllocator * alloc, GstKMSMemory * kmsmem,
 {
   gint i, ret;
   gint num_planes = GST_VIDEO_INFO_N_PLANES (vinfo);
-  guint32 w, h, fmt, bo_handles[4] = { 0, };
+  guint32 w, h, fmt, alignment, bo_handles[4] = { 0, };
   guint32 pitches[4] = { 0, };
   guint32 offsets[4] = { 0, };
   guint64 modifier[4] = { 0, };
@@ -457,6 +457,9 @@ gst_kms_allocator_add_fb (GstKMSAllocator * alloc, GstKMSMemory * kmsmem,
   w = GST_VIDEO_INFO_WIDTH (vinfo);
   h = GST_VIDEO_INFO_HEIGHT (vinfo);
   fmt = gst_drm_format_from_video (GST_VIDEO_INFO_FORMAT (vinfo));
+  alignment = gst_drm_alignment_from_drm_format (fmt);
+  w = GST_ROUND_UP_N (w, alignment);
+  h = GST_ROUND_UP_N (h, alignment);
 
   for (i = 0; i < num_planes; i++) {
     if (kmsmem->bo)
