@@ -142,6 +142,31 @@ gst_drm_bpp_from_drm (guint32 drmfmt)
 }
 
 guint32
+gst_drm_alignment_from_drm_format (guint32 drmfmt)
+{
+  guint32 alignment;
+
+  switch (drmfmt) {
+    case DRM_FORMAT_YUV420:
+    case DRM_FORMAT_YVU420:
+    case DRM_FORMAT_YUV422:
+    case DRM_FORMAT_NV12:
+    case DRM_FORMAT_NV21:
+    case DRM_FORMAT_NV16:
+    case DRM_FORMAT_UYVY:
+    case DRM_FORMAT_YUYV:
+    case DRM_FORMAT_YVYU:
+      alignment = 2;
+      break;
+    default:
+      alignment = 1;
+      break;
+  }
+
+  return alignment;
+}
+
+guint32
 gst_drm_height_from_drm (guint32 drmfmt, guint32 height)
 {
   guint32 ret;
