@@ -1792,6 +1792,7 @@ dump_hdr10meta (GstKMSSink *self, GstBuffer * buf)
     GST_INFO_OBJECT (self, "transferCharacteristics %d", meta->hdr10meta.transferCharacteristics);
     GST_INFO_OBJECT (self, "colourPrimaries %d", meta->hdr10meta.colourPrimaries);
     GST_INFO_OBJECT (self, "matrixCoeffs %d", meta->hdr10meta.matrixCoeffs);
+    GST_INFO_OBJECT (self, "fullRange %d", meta->hdr10meta.fullRange);
     GST_INFO_OBJECT (self, "chromaSampleLocTypeTopField %d", meta->hdr10meta.chromaSampleLocTypeTopField);
     GST_INFO_OBJECT (self, "chromaSampleLocTypeBottomField %d", meta->hdr10meta.chromaSampleLocTypeBottomField);
   }
