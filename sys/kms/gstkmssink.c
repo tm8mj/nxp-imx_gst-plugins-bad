@@ -1178,6 +1178,7 @@ gst_kms_sink_propose_allocation (GstBaseSink * bsink, GstQuery * query)
   drm_modifier = DRM_FORMAT_MOD_AMPHION_TILED;
   gst_query_add_allocation_dmabuf_meta (query, drm_modifier);
 
+#if 0
   props = drmModeObjectGetProperties (self->fd, self->plane_id, DRM_MODE_OBJECT_PLANE);
   for (i = 0; i < props->count_props; ++i) {
     prop = drmModeGetProperty(self->fd, props->props[i]);
@@ -1193,6 +1194,7 @@ gst_kms_sink_propose_allocation (GstBaseSink * bsink, GstQuery * query)
     drmModeFreeProperty (prop);
     prop = NULL;
   }
+#endif
 
   return TRUE;
 
