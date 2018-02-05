@@ -80,6 +80,7 @@ struct _GstKMSSink {
 
   gboolean modesetting_enabled;
   gboolean display_connected;
+  gboolean hantro_tile_enabled;
 
   GstVideoInfo vinfo;
   GstCaps *allowed_caps;
