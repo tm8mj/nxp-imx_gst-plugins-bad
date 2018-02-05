@@ -91,6 +91,7 @@ enum
   PROP_PLANE_ID,
   PROP_FORCE_MODESETTING,
   PROP_GLOBAL_ALPHA,
+  PROP_FORCE_HANTROTILE,
   PROP_N
 };
 
@@ -1178,20 +1179,22 @@ gst_kms_sink_propose_allocation (GstBaseSink * bsink, GstQuery * query)
   drm_modifier = DRM_FORMAT_MOD_AMPHION_TILED;
   gst_query_add_allocation_dmabuf_meta (query, drm_modifier);
 
-  props = drmModeObjectGetProperties (self->fd, self->plane_id, DRM_MODE_OBJECT_PLANE);
-  for (i = 0; i < props->count_props; ++i) {
-    prop = drmModeGetProperty(self->fd, props->props[i]);
-    if (!strcmp(prop->name, "dtrc_table_ofs")) {
-      GST_DEBUG ("has dtrc_table_ofs property, can support VSI tile format");
-      drm_modifier = DRM_FORMAT_MOD_VSI_G1_TILED;
-      gst_query_add_allocation_dmabuf_meta (query, drm_modifier);
-      drm_modifier = DRM_FORMAT_MOD_VSI_G2_TILED;
-      gst_query_add_allocation_dmabuf_meta (query, drm_modifier);
-      drm_modifier = DRM_FORMAT_MOD_VSI_G2_TILED_COMPRESSED;
-      gst_query_add_allocation_dmabuf_meta (query, drm_modifier);
+  if (self->hantro_tile_enabled) {
+    props = drmModeObjectGetProperties (self->fd, self->plane_id, DRM_MODE_OBJECT_PLANE);
+    for (i = 0; i < props->count_props; ++i) {
+      prop = drmModeGetProperty(self->fd, props->props[i]);
+      if (!strcmp(prop->name, "dtrc_table_ofs")) {
+        GST_DEBUG ("has dtrc_table_ofs property, can support VSI tile format");
+        drm_modifier = DRM_FORMAT_MOD_VSI_G1_TILED;
+        gst_query_add_allocation_dmabuf_meta (query, drm_modifier);
+        drm_modifier = DRM_FORMAT_MOD_VSI_G2_TILED;
+        gst_query_add_allocation_dmabuf_meta (query, drm_modifier);
+        drm_modifier = DRM_FORMAT_MOD_VSI_G2_TILED_COMPRESSED;
+        gst_query_add_allocation_dmabuf_meta (query, drm_modifier);
+      }
+      drmModeFreeProperty (prop);
+      prop = NULL;
     }
-    drmModeFreeProperty (prop);
-    prop = NULL;
   }
 
   return TRUE;
@@ -1899,6 +1902,9 @@ gst_kms_sink_set_property (GObject * object, guint prop_id,
     case PROP_GLOBAL_ALPHA:
       sink->global_alpha = g_value_get_int (value);
       break;
+    case PROP_FORCE_HANTROTILE:
+      sink->hantro_tile_enabled = g_value_get_boolean (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -1929,6 +1935,9 @@ gst_kms_sink_get_property (GObject * object, guint prop_id,
     case PROP_GLOBAL_ALPHA:
       g_value_set_int (value, sink->global_alpha);
       break;
+    case PROP_FORCE_HANTROTILE:
+      g_value_set_boolean (value, sink->hantro_tile_enabled);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -1957,6 +1966,7 @@ gst_kms_sink_init (GstKMSSink * sink)
   sink->scale_checked = FALSE;
   sink->upscale_ratio = 1;
   sink->downscale_ratio = 1;
+  sink->hantro_tile_enabled = FALSE;
   gst_poll_fd_init (&sink->pollfd);
   sink->poll = gst_poll_new (TRUE);
   gst_video_info_init (&sink->vinfo);
@@ -2043,6 +2053,16 @@ gst_kms_sink_class_init (GstKMSSinkClass * klass)
   g_properties[PROP_FORCE_MODESETTING] =
       g_param_spec_boolean ("force-modesetting", "Force modesetting",
       "When enabled, the sink try to configure the display mode", FALSE,
+      G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_CONSTRUCT);
+  
+  /**
+   * kmssink:force-hantrotile:
+   *
+   * If enable, the sink propose hantro tile modifier to VPU.
+   */
+  g_properties[PROP_FORCE_HANTROTILE] =
+      g_param_spec_boolean ("force-hantrotile", "Force to use hantro tile",
+      "When enabled, the sink propose hantro tile modifier to VPU", FALSE,
       G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_CONSTRUCT);
 
    /**
