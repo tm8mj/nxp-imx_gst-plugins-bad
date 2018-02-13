@@ -26,7 +26,9 @@
 #ifndef __GST_KMS_SINK_H__
 #define __GST_KMS_SINK_H__
 
-#include <stdint.h>
+#include <drm.h>
+#include <xf86drm.h>
+#include <xf86drmMode.h>
 
 #include <gst/video/gstvideosink.h>
 
@@ -57,6 +59,7 @@ struct _GstKMSSink {
   gint conn_id;
   gint crtc_id;
   gint plane_id;
+  gint primary_plane_id;
   guint pipe;
 
   /* fps print support */
@@ -82,6 +85,11 @@ struct _GstKMSSink {
   gboolean modesetting_enabled;
   gboolean display_connected;
   gboolean hantro_tile_enabled;
+
+  /* hdr10 support */
+  struct hdr_static_metadata hdr10meta;
+  drmModeCrtcPtr old_crtc;
+  GstMemory *hdr10_mem;
 
   GstVideoInfo vinfo;
   GstCaps *allowed_caps;
