@@ -26,6 +26,8 @@
 #ifndef __GST_KMS_SINK_H__
 #define __GST_KMS_SINK_H__
 
+#include <stdint.h>
+
 #include <gst/video/gstvideosink.h>
 
 G_BEGIN_DECLS
@@ -41,7 +43,7 @@ G_BEGIN_DECLS
 #define GST_IS_KMS_SINK_CLASS(klass) \
   (G_TYPE_CHECK_CLASS_TYPE((klass), GST_TYPE_KMS_SINK))
 
-#define DEFAULT_HOLD_BUFFER_NUM 2
+#define DEFAULT_HOLD_BUFFER_NUM 3
 
 typedef struct _GstKMSSink GstKMSSink;
 typedef struct _GstKMSSinkClass GstKMSSinkClass;
