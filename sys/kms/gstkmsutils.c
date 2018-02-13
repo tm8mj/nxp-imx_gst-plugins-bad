@@ -27,6 +27,8 @@
 #include "config.h"
 #endif
 
+#include <stdint.h>
+
 #include <drm_fourcc.h>
 #include <dirent.h>
 #include <string.h>
@@ -70,9 +72,7 @@ static const struct
   DEF_FMT (YVU420, YV12),
   DEF_FMT (YUV422, Y42B),
   DEF_FMT (NV12, NV12),
-  /* FIXME: just hack for debug usage, need 
-   * drm driver owner add 10bit fourcc format */
-  DEF_FMT (NV12, NV12_10LE),
+  DEF_FMT (P010, NV12_10LE),
   DEF_FMT (NV21, NV21),
   DEF_FMT (NV16, NV16),
 

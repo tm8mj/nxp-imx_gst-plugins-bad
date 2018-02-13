@@ -53,7 +53,8 @@
 #include <gst/allocators/gstdmabufmeta.h>
 #include <gst/allocators/gstphymemmeta.h>
 
-#include <drm.h>
+#include <stdint.h>
+
 #include <xf86drm.h>
 #include <xf86drmMode.h>
 #include <drm_fourcc.h>
@@ -1679,6 +1680,7 @@ gst_kms_sink_set_kmsproperty (GstKMSSink * self, guint alpha, guint64 dtrc_table
       GST_DEBUG ("set global alpha %d to primary plane %d property %d",
           alpha, plane->plane_id, prop->prop_id);
       drmModeObjectSetProperty (self->ctrl_fd, plane->plane_id, DRM_MODE_OBJECT_PLANE, prop->prop_id, alpha);
+      self->primary_plane_id = plane->plane_id;
     }
     drmModeFreeProperty (prop);
     prop = NULL;
@@ -1711,6 +1713,7 @@ gst_kms_sink_change_state (GstElement * element, GstStateChange transition)
   switch (transition) {
     case GST_STATE_CHANGE_NULL_TO_READY:
       self->is_kmsproperty_set = FALSE;
+      memset (&self->hdr10meta, 0, sizeof (self->hdr10meta));
       break;
     case GST_STATE_CHANGE_READY_TO_PAUSED:
     {
@@ -1743,6 +1746,7 @@ gst_kms_sink_change_state (GstElement * element, GstStateChange transition)
         if (self->hold_buf[i])
           gst_buffer_unref (self->hold_buf[i]);
       }
+
       break;
     }
     case GST_STATE_CHANGE_READY_TO_NULL:
@@ -1852,17 +1856,25 @@ done:
 }
 
 void
-dump_hdr10meta (GstKMSSink *self, GstBuffer * buf)
+gst_kms_sink_config_hdr10 (GstKMSSink *self, GstBuffer * buf)
 {
-
+  guint blob_id = 0, prop_id = 0;
+  int err;
+  gint i;
+  drmModeObjectPropertiesPtr props = NULL;
+  drmModePropertyPtr prop = NULL;
   GstVideoHdr10Meta *meta = NULL;
+
+  if (self->conn_id < 0) {
+    GST_ERROR_OBJECT (self, "no connector");
+    return;
+  }
 
   /* buf could be NULL when resize */
   if (buf)
     meta = gst_buffer_get_video_hdr10_meta (buf);
 
-  if (meta){
-    /* TODO: just dump temporarily, to do configure to drm driver for hdr10 in future */
+  if (meta && self->hdr10meta.eotf == 0) {
     GST_INFO_OBJECT (self, "redPrimary x=%d y=%d", meta->hdr10meta.redPrimary[0], meta->hdr10meta.redPrimary[1]);
     GST_INFO_OBJECT (self, "greenPrimary x=%d y=%d", meta->hdr10meta.greenPrimary[0], meta->hdr10meta.greenPrimary[1]);
     GST_INFO_OBJECT (self, "bluePrimary x=%d y=%d", meta->hdr10meta.bluePrimary[0], meta->hdr10meta.bluePrimary[1]);
@@ -1877,6 +1889,48 @@ dump_hdr10meta (GstKMSSink *self, GstBuffer * buf)
     GST_INFO_OBJECT (self, "fullRange %d", meta->hdr10meta.fullRange);
     GST_INFO_OBJECT (self, "chromaSampleLocTypeTopField %d", meta->hdr10meta.chromaSampleLocTypeTopField);
     GST_INFO_OBJECT (self, "chromaSampleLocTypeBottomField %d", meta->hdr10meta.chromaSampleLocTypeBottomField);
+
+    /* FIXME: better to use marcos instead of const value */
+    self->hdr10meta.eotf = 2;
+    self->hdr10meta.type = 0;
+    self->hdr10meta.display_primaries_x [0] = meta->hdr10meta.redPrimary[0];
+    self->hdr10meta.display_primaries_x [1] = meta->hdr10meta.greenPrimary[0];
+    self->hdr10meta.display_primaries_x [2] = meta->hdr10meta.bluePrimary[0];
+    self->hdr10meta.display_primaries_y [0] = meta->hdr10meta.redPrimary[1];
+    self->hdr10meta.display_primaries_y [1] = meta->hdr10meta.greenPrimary[1];
+    self->hdr10meta.display_primaries_y [2] = meta->hdr10meta.bluePrimary[1];
+    self->hdr10meta.white_point_x = meta->hdr10meta.whitePoint[0];
+    self->hdr10meta.white_point_y = meta->hdr10meta.whitePoint[1];
+    self->hdr10meta.max_mastering_display_luminance = (meta->hdr10meta.maxMasteringLuminance / 10000) & 0xffff;;
+    self->hdr10meta.min_mastering_display_luminance = meta->hdr10meta.minMasteringLuminance & 0xffff;
+    self->hdr10meta.max_fall = meta->hdr10meta.maxFrameAverageLightLevel;
+    self->hdr10meta.max_cll =  meta->hdr10meta.maxContentLightLevel;
+  
+    props = drmModeObjectGetProperties (self->fd, self->conn_id, DRM_MODE_OBJECT_CONNECTOR);
+    for (i = 0; i < props->count_props; ++i) {
+      prop = drmModeGetProperty(self->fd, props->props[i]);
+      if (!strcmp(prop->name, "HDR_SOURCE_METADATA")) {
+        GST_DEBUG_OBJECT (self, "found HDR_SOURCE_METADATA property on connector %d property id %d",
+            self->conn_id, prop->prop_id);
+        prop_id = prop->prop_id;
+      }
+      drmModeFreeProperty (prop);
+      prop = NULL;
+    }
+
+    if (prop_id == 0) {
+      GST_WARNING_OBJECT (self, "no HDR_SOURCE_METADATA property found");
+      return;
+    }
+
+    drmModeCreatePropertyBlob (self->fd, &self->hdr10meta, sizeof (self->hdr10meta), &blob_id);
+    GST_INFO_OBJECT (self, "create blob id %d", blob_id);
+    err = drmModeObjectSetProperty (self->ctrl_fd, self->conn_id, DRM_MODE_OBJECT_CONNECTOR, prop_id, blob_id);
+    drmModeDestroyPropertyBlob (self->fd, blob_id);
+    if (err) {
+      GST_ERROR_OBJECT (self, "set blob property fail");
+      return;
+    }
   }
 }
 
@@ -1915,8 +1969,6 @@ gst_kms_sink_show_frame (GstVideoSink * vsink, GstBuffer * buf)
   gboolean can_scale = TRUE;
   guint32 fmt, alignment;
   
-  dump_hdr10meta (GST_KMS_SINK (vsink), buf);
-
   self = GST_KMS_SINK (vsink);
 
   res = GST_FLOW_ERROR;
@@ -1950,6 +2002,9 @@ gst_kms_sink_show_frame (GstVideoSink * vsink, GstBuffer * buf)
 
   if (!buffer)
     return GST_FLOW_ERROR;
+  
+  gst_kms_sink_config_hdr10 (self, buffer);
+
   fb_id = gst_kms_memory_get_fb_id (gst_buffer_peek_memory (buffer, 0));
   if (fb_id == 0)
     goto buffer_invalid;
@@ -2324,6 +2379,7 @@ gst_kms_sink_init (GstKMSSink * sink)
   sink->fd = -1;
   sink->conn_id = -1;
   sink->plane_id = -1;
+  sink->primary_plane_id = -1;
   sink->can_scale = TRUE;
   sink->scale_checked = FALSE;
   sink->upscale_ratio = 1;
