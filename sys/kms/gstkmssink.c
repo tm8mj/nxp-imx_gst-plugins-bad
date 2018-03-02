@@ -1518,16 +1518,6 @@ gst_kms_sink_change_state (GstElement * element, GstStateChange transition)
           gst_buffer_unref (self->hold_buf[i]);
       }
 
-      if (self->old_crtc) {
-        gint err;
-        err = drmModeSetCrtc (self->ctrl_fd, self->crtc_id, self->old_crtc->buffer_id, 0, 0,
-            (uint32_t *) & self->conn_id, 1, & self->old_crtc->mode);
-        if (err) {
-          GST_ERROR_OBJECT (self, "set crtc fail");
-        }
-        drmModeFreeCrtc (self->old_crtc);
-      }
-      self->old_crtc = NULL;
       break;
     }
     case GST_STATE_CHANGE_READY_TO_NULL:
@@ -1635,14 +1625,9 @@ gst_kms_sink_config_hdr10 (GstKMSSink *self, GstBuffer * buf)
   guint blob_id = 0, prop_id = 0;
   int err;
   gint i;
-  guint32 fb_id;
-  drmModeConnector *conn = NULL;
-  drmModeModeInfo *mode = NULL;
   drmModeObjectPropertiesPtr props = NULL;
   drmModePropertyPtr prop = NULL;
   GstVideoHdr10Meta *meta = NULL;
-  GstKMSMemory *kmsmem = NULL;
-  GstVideoInfo vinfo;
 
   if (self->conn_id < 0) {
     GST_ERROR_OBJECT (self, "no connector");
@@ -1654,12 +1639,6 @@ gst_kms_sink_config_hdr10 (GstKMSSink *self, GstBuffer * buf)
     meta = gst_buffer_get_video_hdr10_meta (buf);
 
   if (meta && self->hdr10meta.eotf == 0) {
-    conn = drmModeGetConnector (self->fd, self->conn_id);
-    if (!conn) {
-      GST_ERROR_OBJECT (self, "no connector res");
-      return;
-    }
-
     GST_INFO_OBJECT (self, "redPrimary x=%d y=%d", meta->hdr10meta.redPrimary[0], meta->hdr10meta.redPrimary[1]);
     GST_INFO_OBJECT (self, "greenPrimary x=%d y=%d", meta->hdr10meta.greenPrimary[0], meta->hdr10meta.greenPrimary[1]);
     GST_INFO_OBJECT (self, "bluePrimary x=%d y=%d", meta->hdr10meta.bluePrimary[0], meta->hdr10meta.bluePrimary[1]);
@@ -1705,7 +1684,7 @@ gst_kms_sink_config_hdr10 (GstKMSSink *self, GstBuffer * buf)
 
     if (prop_id == 0) {
       GST_WARNING_OBJECT (self, "no HDR_SOURCE_METADATA property found");
-      goto bail;
+      return;
     }
 
     drmModeCreatePropertyBlob (self->fd, &self->hdr10meta, sizeof (self->hdr10meta), &blob_id);
@@ -1714,50 +1693,9 @@ gst_kms_sink_config_hdr10 (GstKMSSink *self, GstBuffer * buf)
     drmModeDestroyPropertyBlob (self->fd, blob_id);
     if (err) {
       GST_ERROR_OBJECT (self, "set blob property fail");
-      goto bail;
+      return;
     }
-
-    GST_DEBUG_OBJECT (self, "set blob property success, continue to setCrtc");
-
-    /* FIXME: temporarily we can only enable HDR10 on 4k@60fps mode */
-    for (i = 0; i < conn->count_modes; i++) {
-      if (conn->modes[i].vdisplay == 2160 &&
-          conn->modes[i].hdisplay == 3840 &&
-          conn->modes[i].vrefresh == 60) {
-        mode = &conn->modes[i];
-        break;
-      }
-    }
-
-    if (!mode) {
-      GST_ERROR_OBJECT (self, "4k@60fps mode not found");
-      goto bail;
-    }
-
-    gst_video_info_init (&vinfo);
-    gst_video_info_set_format (&vinfo, GST_VIDEO_FORMAT_NV12_10LE, mode->hdisplay, mode->vdisplay);
-
-    ensure_kms_allocator (self);
-
-    kmsmem = (GstKMSMemory *) gst_kms_allocator_bo_alloc (self->allocator, &vinfo);
-    if (!kmsmem)
-      goto bail;
-
-    fb_id = kmsmem->fb_id;
-
-    self->old_crtc = drmModeGetCrtc (self->fd, self->crtc_id);
-
-    err = drmModeSetCrtc (self->ctrl_fd, self->crtc_id, fb_id, 0, 0,
-        (uint32_t *) & self->conn_id, 1, mode);
-    if (err) {
-      GST_ERROR_OBJECT (self, "set crtc fail");
-      goto bail;
-    }
-    self->hdr10_mem = kmsmem;
   }
-bail:
-  if (conn)
-    drmModeFreeConnector (conn);
 }
 
 static gboolean
@@ -1937,7 +1875,6 @@ done:
   if (buffer != self->last_buffer)
     gst_buffer_replace (&self->last_buffer, buffer);
   g_clear_pointer (&self->tmp_kmsmem, gst_memory_unref);
-  g_clear_pointer (&self->hdr10_mem, gst_memory_unref);
 
   GST_OBJECT_UNLOCK (self);
   res = GST_FLOW_OK;
@@ -2084,7 +2021,6 @@ gst_kms_sink_init (GstKMSSink * sink)
   sink->upscale_ratio = 1;
   sink->downscale_ratio = 1;
   sink->hantro_tile_enabled = FALSE;
-  sink->old_crtc = NULL;
   gst_poll_fd_init (&sink->pollfd);
   sink->poll = gst_poll_new (TRUE);
   gst_video_info_init (&sink->vinfo);
