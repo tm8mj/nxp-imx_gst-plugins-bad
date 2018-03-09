@@ -516,6 +516,32 @@ check_scaleable (GstKMSSink * self)
 }
 
 static gboolean
+check_vsi_tile_enable (GstKMSSink * self, GstBuffer * buffer)
+{
+  GstDmabufMeta *dmabuf_meta;
+  gint64 drm_modifier = 0;
+
+  if (!buffer)
+    buffer = self->hold_buf[0];
+
+  if (!buffer)
+    return FALSE;
+
+  if (!gst_is_dmabuf_memory (gst_buffer_peek_memory (buffer, 0)))
+    return FALSE;
+
+  dmabuf_meta = gst_buffer_get_dmabuf_meta (buffer);
+  if (dmabuf_meta)
+    drm_modifier = dmabuf_meta->drm_modifier;
+
+  GST_INFO_OBJECT (self, "buffer modifier type %d", drm_modifier);
+
+  return drm_modifier == DRM_FORMAT_MOD_VSI_G1_TILED
+         || drm_modifier == DRM_FORMAT_MOD_VSI_G2_TILED
+         || drm_modifier == DRM_FORMAT_MOD_VSI_G2_TILED_COMPRESSED;
+}
+
+static gboolean
 configure_mode_setting (GstKMSSink * self, GstVideoInfo * vinfo)
 {
   gboolean ret;
@@ -2052,6 +2078,14 @@ retry_set_plane:
 
   result.x = GST_ROUND_DOWN_N (result.x + self->render_rect.x, alignment);
   result.y = GST_ROUND_DOWN_N (result.y + self->render_rect.y, alignment);;
+
+  if (result.x < 0 || result.y < 0) {
+    /* FIXME: need improve cropping handle when DTRC is not enable */
+    if (!check_vsi_tile_enable (self, buf)) {
+      result.x = result.x < 0 ? 0 : result.x;
+      result.y = result.y < 0 ? 0 : result.y;
+    }
+  }
 
   if (crop) {
     src.w = crop->width;
