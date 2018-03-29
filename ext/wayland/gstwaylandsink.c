@@ -193,6 +193,7 @@ gst_wayland_sink_init (GstWaylandSink * self)
 {
   g_mutex_init (&self->display_lock);
   g_mutex_init (&self->render_lock);
+  g_cond_init (&self->redraw_wait);
 }
 
 static void
@@ -319,6 +320,7 @@ gst_wayland_sink_finalize (GObject * object)
 
   g_mutex_clear (&self->display_lock);
   g_mutex_clear (&self->render_lock);
+  g_cond_clear (&self->redraw_wait);
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
@@ -687,6 +689,7 @@ frame_redraw_callback (void *data, struct wl_callback *callback, uint32_t time)
 
   g_mutex_lock (&self->render_lock);
   self->redraw_pending = FALSE;
+  g_cond_signal (&self->redraw_wait);
 
   if (self->callback) {
     wl_callback_destroy (callback);
@@ -769,12 +772,8 @@ gst_wayland_sink_show_frame (GstVideoSink * vsink, GstBuffer * buffer)
     }
   }
 
-  /* drop buffers until we get a frame callback */
-  if (self->redraw_pending) {
-    GST_LOG_OBJECT (self, "buffer %" GST_PTR_FORMAT " dropped (redraw pending)",
-        buffer);
-    goto done;
-  }
+  while (self->redraw_pending)
+    g_cond_wait (&self->redraw_wait, &self->render_lock);
 
   /* make sure that the application has called set_render_rectangle() */
   if (G_UNLIKELY (gst_wl_window_get_render_rectangle (self->window)->w == 0))
