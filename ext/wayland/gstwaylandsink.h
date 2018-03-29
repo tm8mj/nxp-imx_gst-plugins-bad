@@ -70,6 +70,10 @@ struct _GstWaylandSink
   GstBuffer *last_buffer;
 
   struct wl_callback *callback;
+
+  /* fps print support */
+  guint64 frame_showed;
+  GstClockTime run_time;
 };
 
 struct _GstWaylandSinkClass
