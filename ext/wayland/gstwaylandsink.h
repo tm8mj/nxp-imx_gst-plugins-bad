@@ -68,6 +68,10 @@ struct _GstWaylandSink
   GCond redraw_wait;
   GMutex render_lock;
   GstBuffer *last_buffer;
+
+  /* fps print support */
+  guint64 frame_showed;
+  GstClockTime run_time;
 };
 
 struct _GstWaylandSinkClass
