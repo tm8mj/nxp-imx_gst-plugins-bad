@@ -69,6 +69,10 @@ struct _GstWaylandSink
   GstVideoOrientationMethod current_rotate_method;
 
   struct wl_callback *callback;
+
+  /* fps print support */
+  guint64 frame_showed;
+  GstClockTime run_time;
 };
 
 struct _GstWaylandSinkClass
