@@ -1683,7 +1683,7 @@ gst_kms_sink_config_hdr10 (GstKMSSink *self, GstBuffer * buf)
 
     /* FIXME: better to use marcos instead of const value */
     self->hdr10meta.eotf = 2;
-    self->hdr10meta.type = 0x8a48;
+    self->hdr10meta.type = 0;
     self->hdr10meta.display_primaries_x [0] = meta->hdr10meta.redPrimary[0];
     self->hdr10meta.display_primaries_x [1] = meta->hdr10meta.greenPrimary[0];
     self->hdr10meta.display_primaries_x [2] = meta->hdr10meta.bluePrimary[0];
@@ -1692,8 +1692,8 @@ gst_kms_sink_config_hdr10 (GstKMSSink *self, GstBuffer * buf)
     self->hdr10meta.display_primaries_y [2] = meta->hdr10meta.bluePrimary[1];
     self->hdr10meta.white_point_x = meta->hdr10meta.whitePoint[0];
     self->hdr10meta.white_point_y = meta->hdr10meta.whitePoint[1];
-    self->hdr10meta.max_mastering_display_luminance = meta->hdr10meta.maxMasteringLuminance;
-    self->hdr10meta.min_mastering_display_luminance = meta->hdr10meta.minMasteringLuminance;
+    self->hdr10meta.max_mastering_display_luminance = (meta->hdr10meta.maxMasteringLuminance / 10000) & 0xffff;;
+    self->hdr10meta.min_mastering_display_luminance = meta->hdr10meta.minMasteringLuminance & 0xffff;
     self->hdr10meta.max_fall = meta->hdr10meta.maxFrameAverageLightLevel;
     self->hdr10meta.max_cll =  meta->hdr10meta.maxContentLightLevel;
   
