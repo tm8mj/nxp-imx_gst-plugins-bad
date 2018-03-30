@@ -1772,6 +1772,16 @@ gst_kms_sink_change_state (GstElement * element, GstStateChange transition)
         if (self->hold_buf[i])
           gst_buffer_unref (self->hold_buf[i]);
       }
+      if (self->hdr10meta.eotf != 0) {
+        guint blob_id = 0;
+        gint err = 0;
+        self->hdr10meta.eotf = 0;
+        drmModeCreatePropertyBlob (self->fd, &self->hdr10meta, 1, &blob_id);
+        err = drmModeObjectSetProperty (self->ctrl_fd, self->conn_id, DRM_MODE_OBJECT_CONNECTOR, self->hdr_prop_id, blob_id);
+        drmModeDestroyPropertyBlob (self->fd, blob_id);
+        if (err)
+          GST_ERROR_OBJECT (self, "reset blob property fail %d", err);
+      }
 
       break;
     }
@@ -1884,7 +1894,7 @@ done:
 void
 gst_kms_sink_config_hdr10 (GstKMSSink *self, GstBuffer * buf)
 {
-  guint blob_id = 0, prop_id = 0;
+  guint blob_id = 0;
   int err;
   gint i;
   drmModeObjectPropertiesPtr props = NULL;
@@ -1931,30 +1941,32 @@ gst_kms_sink_config_hdr10 (GstKMSSink *self, GstBuffer * buf)
     self->hdr10meta.min_mastering_display_luminance = meta->hdr10meta.minMasteringLuminance & 0xffff;
     self->hdr10meta.max_fall = meta->hdr10meta.maxFrameAverageLightLevel;
     self->hdr10meta.max_cll =  meta->hdr10meta.maxContentLightLevel;
-  
-    props = drmModeObjectGetProperties (self->fd, self->conn_id, DRM_MODE_OBJECT_CONNECTOR);
-    for (i = 0; i < props->count_props; ++i) {
-      prop = drmModeGetProperty(self->fd, props->props[i]);
-      if (!strcmp(prop->name, "HDR_SOURCE_METADATA")) {
-        GST_DEBUG_OBJECT (self, "found HDR_SOURCE_METADATA property on connector %d property id %d",
-            self->conn_id, prop->prop_id);
-        prop_id = prop->prop_id;
+
+    if (!self->hdr_prop_id) {
+      props = drmModeObjectGetProperties (self->fd, self->conn_id, DRM_MODE_OBJECT_CONNECTOR);
+      for (i = 0; i < props->count_props; ++i) {
+        prop = drmModeGetProperty(self->fd, props->props[i]);
+        if (!strcmp(prop->name, "HDR_SOURCE_METADATA")) {
+          GST_DEBUG_OBJECT (self, "found HDR_SOURCE_METADATA property on connector %d property id %d",
+              self->conn_id, prop->prop_id);
+          self->hdr_prop_id = prop->prop_id;
+        }
+        drmModeFreeProperty (prop);
+        prop = NULL;
       }
-      drmModeFreeProperty (prop);
-      prop = NULL;
     }
 
-    if (prop_id == 0) {
+    if (self->hdr_prop_id == 0) {
       GST_WARNING_OBJECT (self, "no HDR_SOURCE_METADATA property found");
       return;
     }
 
     drmModeCreatePropertyBlob (self->fd, &self->hdr10meta, sizeof (self->hdr10meta), &blob_id);
     GST_INFO_OBJECT (self, "create blob id %d", blob_id);
-    err = drmModeObjectSetProperty (self->ctrl_fd, self->conn_id, DRM_MODE_OBJECT_CONNECTOR, prop_id, blob_id);
+    err = drmModeObjectSetProperty (self->ctrl_fd, self->conn_id, DRM_MODE_OBJECT_CONNECTOR, self->hdr_prop_id, blob_id);
     drmModeDestroyPropertyBlob (self->fd, blob_id);
     if (err) {
-      GST_ERROR_OBJECT (self, "set blob property fail");
+      GST_ERROR_OBJECT (self, "set blob property fail %d", err);
       return;
     }
   }
@@ -2413,6 +2425,7 @@ gst_kms_sink_init (GstKMSSink * sink)
   sink->conn_id = -1;
   sink->plane_id = -1;
   sink->primary_plane_id = -1;
+  sink->hdr_prop_id = 0;
   sink->can_scale = TRUE;
   sink->scale_checked = FALSE;
   sink->upscale_ratio = 1;

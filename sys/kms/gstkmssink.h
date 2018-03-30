@@ -91,6 +91,7 @@ struct _GstKMSSink {
 
   /* hdr10 support */
   struct hdr_static_metadata hdr10meta;
+  gint hdr_prop_id;
 
   GstVideoInfo vinfo;
   GstCaps *allowed_caps;
