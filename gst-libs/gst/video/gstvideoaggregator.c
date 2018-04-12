@@ -678,6 +678,27 @@ gst_video_aggregator_default_update_caps (GstVideoAggregator * vagg,
   return ret;
 }
 
+static gboolean
+gst_video_aggregator_get_sinkpads_interlace_mode (GstVideoAggregator * vagg,
+    GstVideoAggregatorPad * skip_pad, GstVideoInterlaceMode * mode)
+{
+  GList *walk;
+
+  for (walk = GST_ELEMENT (vagg)->sinkpads; walk; walk = g_list_next (walk)) {
+    GstVideoAggregatorPad *vaggpad = walk->data;
+
+    if (skip_pad && vaggpad == skip_pad)
+      continue;
+    if (vaggpad->info.finfo
+        && GST_VIDEO_INFO_FORMAT (&vaggpad->info) != GST_VIDEO_FORMAT_UNKNOWN) {
+      *mode = GST_VIDEO_INFO_INTERLACE_MODE (&vaggpad->info);
+      return TRUE;
+    }
+  }
+  return FALSE;
+}
+
+
 static GstFlowReturn
 gst_video_aggregator_default_update_src_caps (GstAggregator * agg,
     GstCaps * caps, GstCaps ** ret)
@@ -706,6 +727,26 @@ gst_video_aggregator_default_update_src_caps (GstAggregator * agg,
     GST_DEBUG_OBJECT (vagg, "Couldn't decide output video info");
     gst_pad_mark_reconfigure (agg->srcpad);
     return GST_AGGREGATOR_FLOW_NEED_DATA;
+  }
+  
+  /* configure for interlace mode, we can only pass through interlace mode */
+  {
+    GstVideoInterlaceMode interlace_mode = GST_VIDEO_INTERLACE_MODE_PROGRESSIVE;
+    gboolean has_mode = FALSE;
+    GstStructure *s;
+    guint i, n;
+    has_mode =
+        gst_video_aggregator_get_sinkpads_interlace_mode (vagg, NULL,
+        &interlace_mode);
+
+    n = gst_caps_get_size (caps);
+    for (i = 0; i < n; i++) {
+      s = gst_caps_get_structure (caps, i);
+
+      if (has_mode)
+        gst_structure_set (s, "interlace-mode", G_TYPE_STRING,
+            gst_video_interlace_mode_to_string (interlace_mode), NULL);
+    }
   }
 
   g_assert (vagg_klass->update_caps);
@@ -790,26 +831,6 @@ gst_video_aggregator_default_negotiated_src_caps (GstAggregator * agg,
   }
 
   return TRUE;
-}
-
-static gboolean
-gst_video_aggregator_get_sinkpads_interlace_mode (GstVideoAggregator * vagg,
-    GstVideoAggregatorPad * skip_pad, GstVideoInterlaceMode * mode)
-{
-  GList *walk;
-
-  for (walk = GST_ELEMENT (vagg)->sinkpads; walk; walk = g_list_next (walk)) {
-    GstVideoAggregatorPad *vaggpad = walk->data;
-
-    if (skip_pad && vaggpad == skip_pad)
-      continue;
-    if (vaggpad->info.finfo
-        && GST_VIDEO_INFO_FORMAT (&vaggpad->info) != GST_VIDEO_FORMAT_UNKNOWN) {
-      *mode = GST_VIDEO_INFO_INTERLACE_MODE (&vaggpad->info);
-      return TRUE;
-    }
-  }
-  return FALSE;
 }
 
 static gboolean
