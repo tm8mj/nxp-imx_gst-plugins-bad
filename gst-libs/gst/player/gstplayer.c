@@ -4696,7 +4696,7 @@ gst_player_config_get_position_update_interval (const GstStructure * config)
 
 /**
  * gst_player_config_set_seek_accurate:
- * @config: a #GstPlayer configuration
+ * @player: #GstPlayer instance
  * @accurate: accurate seek or not
  *
  * Enable or disable accurate seeking. When enabled, elements will try harder
@@ -4712,8 +4712,9 @@ gst_player_config_get_position_update_interval (const GstStructure * config)
  * Since: 1.12
  */
 void
-gst_player_config_set_seek_accurate (GstStructure * config, gboolean accurate)
+gst_player_config_set_seek_accurate (GstPlayer * self, gboolean accurate)
 {
+  GstStructure *config = self->config;
   g_return_if_fail (config != NULL);
 
   gst_structure_id_set (config,
