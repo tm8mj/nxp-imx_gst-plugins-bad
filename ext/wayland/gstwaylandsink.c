@@ -51,6 +51,10 @@
 #include <gst/wayland/wayland.h>
 #include <gst/video/videooverlay.h>
 
+#include <drm_fourcc.h>
+#include <xf86drm.h>
+#include <xf86drmMode.h>
+
 /* signals */
 enum
 {
@@ -625,8 +629,12 @@ gst_wayland_sink_propose_allocation (GstBaseSink * bsink, GstQuery * query)
   GstBufferPool *pool = NULL;
   gboolean need_pool;
   GstAllocator *alloc;
+  guint64 drm_modifier;
 
   gst_query_parse_allocation (query, &caps, &need_pool);
+
+  drm_modifier = DRM_FORMAT_MOD_AMPHION_TILED;
+  gst_query_add_allocation_dmabuf_meta (query, drm_modifier);
 
   if (need_pool)
     pool = gst_wayland_create_pool (sink, caps);
