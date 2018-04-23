@@ -24,6 +24,8 @@
 #include <config.h>
 #endif
 
+#include <gst/allocators/gstdmabufmeta.h>
+
 #include "gstwllinuxdmabuf.h"
 
 #include "linux-dmabuf-unstable-v1-client-protocol.h"
@@ -92,6 +94,8 @@ gst_wl_linux_dmabuf_construct_wl_buffer (GstBuffer * buf,
   struct zwp_linux_buffer_params_v1 *params;
   gint64 timeout;
   ConstructBufferData data;
+  GstDmabufMeta *dmabuf_meta;
+  gint64 drm_modifier = 0;
 
   g_return_val_if_fail (gst_wl_display_check_format_for_dmabuf (display,
           GST_VIDEO_INFO_FORMAT (info)), NULL);
@@ -106,6 +110,10 @@ gst_wl_linux_dmabuf_construct_wl_buffer (GstBuffer * buf,
   width = GST_VIDEO_INFO_WIDTH (info);
   height = GST_VIDEO_INFO_HEIGHT (info);
   nplanes = GST_VIDEO_INFO_N_PLANES (info);
+
+  dmabuf_meta = gst_buffer_get_dmabuf_meta (buf);
+  if (dmabuf_meta)
+    drm_modifier = dmabuf_meta->drm_modifier;
 
   GST_DEBUG_OBJECT (display, "Creating wl_buffer from DMABuf of size %"
       G_GSSIZE_FORMAT " (%d x %d), format %s", info->size, width, height,
@@ -125,7 +133,7 @@ gst_wl_linux_dmabuf_construct_wl_buffer (GstBuffer * buf,
       GstMemory *m = gst_buffer_peek_memory (buf, mem_idx);
       gint fd = gst_dmabuf_memory_get_fd (m);
       zwp_linux_buffer_params_v1_add (params, fd, i, m->offset + skip,
-          stride, 0, 0);
+          stride, drm_modifier >> 32, drm_modifier & 0xffffffff);
     } else {
       GST_ERROR_OBJECT (mem->allocator, "memory does not seem to contain "
           "enough data for the specified format");
