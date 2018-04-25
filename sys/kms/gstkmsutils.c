@@ -28,6 +28,7 @@
 #endif
 
 #include <stdint.h>
+#include <unistd.h>
 
 #include <drm_fourcc.h>
 #include <dirent.h>
@@ -284,8 +285,15 @@ get_imx_drm_device_name (void)
   guint count;
   guint i;
   const gchar * device;
+  const gchar * scan_path;
 
-  count = scandir ("/proc/device-tree", &entry_list, 0, alphasort);
+  if (access ("/proc/device-tree/passthrough", F_OK) == 0) {
+    scan_path = "/proc/device-tree/passthrough";
+  } else {
+    scan_path = "/proc/device-tree";
+  }
+
+  count = scandir (scan_path, &entry_list, 0, alphasort);
   if (count < 0)
     return NULL;
 
