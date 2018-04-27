@@ -48,6 +48,8 @@
 #include "wlshmallocator.h"
 #include "wllinuxdmabuf.h"
 
+#include "gstimxcommon.h"
+
 #include <gst/wayland/wayland.h>
 #include <gst/video/videooverlay.h>
 
@@ -140,8 +142,6 @@ G_DEFINE_TYPE_WITH_CODE (GstWaylandSink, gst_wayland_sink, GST_TYPE_VIDEO_SINK,
         gst_wayland_sink_videooverlay_init)
     G_IMPLEMENT_INTERFACE (GST_TYPE_WAYLAND_VIDEO,
         gst_wayland_sink_waylandvideo_init));
-GST_ELEMENT_REGISTER_DEFINE (waylandsink, "waylandsink", GST_RANK_MARGINAL,
-    GST_TYPE_WAYLAND_SINK);
 
 /* A tiny GstVideoBufferPool subclass that modify the options to remove
  * VideoAlignment. To support VideoAlignment we would need to pass the padded
@@ -1327,10 +1327,24 @@ gst_wayland_sink_end_geometry_change (GstWaylandVideo * video)
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
+  GstRank rank = GST_RANK_MARGINAL;
+
   GST_DEBUG_CATEGORY_INIT (gstwayland_debug, "waylandsink", 0,
       " wayland video sink");
 
   gst_wl_shm_allocator_register ();
+
+  if (HAS_DPU ()) {
+    if (HAS_VPU ())
+      rank = IMX_GST_PLUGIN_RANK + 1;
+  } else if (IS_IMX8MM () || IS_IMX8MN () || IS_IMX8MP () || IS_IMX8ULP ()) {
+    rank = IMX_GST_PLUGIN_RANK + 1;
+  } else if (HAS_DCSS ()) {
+    rank = IMX_GST_PLUGIN_RANK;
+  }
+
+  GST_ELEMENT_REGISTER_DEFINE (waylandsink, "waylandsink", rank,
+    GST_TYPE_WAYLAND_SINK);
 
   return GST_ELEMENT_REGISTER (waylandsink, plugin);
 }
