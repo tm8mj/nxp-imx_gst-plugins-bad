@@ -48,6 +48,8 @@
 #include "wlshmallocator.h"
 #include "wllinuxdmabuf.h"
 
+#include "gstimxcommon.h"
+
 #include <gst/wayland/wayland.h>
 #include <gst/video/videooverlay.h>
 
@@ -1069,12 +1071,21 @@ gst_wayland_sink_end_geometry_change (GstWaylandVideo * video)
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
+  GstRank rank = GST_RANK_MARGINAL;
+
   GST_DEBUG_CATEGORY_INIT (gstwayland_debug, "waylandsink", 0,
       " wayland video sink");
 
   gst_wl_shm_allocator_register ();
+  
+  if (HAS_DPU()) {
+    if (HAS_VPU())
+      rank = IMX_GST_PLUGIN_RANK + 1;
+  } else if (HAS_DCSS()) {
+    rank = IMX_GST_PLUGIN_RANK;
+  }
 
-  return gst_element_register (plugin, "waylandsink", GST_RANK_MARGINAL,
+  return gst_element_register (plugin, "waylandsink", rank,
       GST_TYPE_WAYLAND_SINK);
 }
 
