@@ -1071,6 +1071,8 @@ plugin_init (GstPlugin * plugin)
   if (HAS_DPU()) {
     if (HAS_VPU())
       rank = IMX_GST_PLUGIN_RANK + 1;
+  } else if (IS_IMX8MM()) {
+      rank = IMX_GST_PLUGIN_RANK + 1;
   } else if (HAS_DCSS()) {
     rank = IMX_GST_PLUGIN_RANK;
   }
