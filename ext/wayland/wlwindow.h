@@ -68,6 +68,9 @@ struct _GstWlWindow
   /* the size of the video in the buffers */
   gint video_width, video_height;
 
+  /* the coordinate of video crop */
+  gint src_x, src_y, src_width, src_height;
+
   /* this will be set when viewporter is available and black background has
    * already been set on the area_subsurface */
   gboolean no_border_update;
@@ -96,6 +99,7 @@ void gst_wl_window_render (GstWlWindow * window, GstWlBuffer * buffer,
         const GstVideoInfo * info);
 void gst_wl_window_set_render_rectangle (GstWlWindow * window, gint x, gint y,
         gint w, gint h);
+void gst_wl_window_set_source_crop (GstWlWindow * window, GstBuffer * buffer);
 
 G_END_DECLS
 
