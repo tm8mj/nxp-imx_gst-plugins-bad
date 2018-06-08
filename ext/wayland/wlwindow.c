@@ -152,6 +152,10 @@ gst_wl_window_init (GstWlWindow * self)
   self->configured = TRUE;
   g_cond_init (&self->configure_cond);
   g_mutex_init (&self->configure_mutex);
+  self->src_x = 0;
+  self->src_y = 0;
+  self->src_width = -1;
+  self->src_height = 0;
 }
 
 static void
@@ -396,6 +400,11 @@ gst_wl_window_resize_video_surface (GstWlWindow * window, gboolean commit)
   GstVideoRectangle dst = { 0, };
   GstVideoRectangle res;
 
+  wl_fixed_t src_x = wl_fixed_from_int (window->src_x);
+  wl_fixed_t src_y = wl_fixed_from_int (window->src_y);
+  wl_fixed_t src_width = wl_fixed_from_int (window->src_width);
+  wl_fixed_t src_height = wl_fixed_from_int (window->src_height);
+
   /* center the video_subsurface inside area_subsurface */
   src.w = window->video_width;
   src.h = window->video_height;
@@ -405,6 +414,9 @@ gst_wl_window_resize_video_surface (GstWlWindow * window, gboolean commit)
   if (window->video_viewport) {
     gst_video_sink_center_rect (src, dst, &res, TRUE);
     wp_viewport_set_destination (window->video_viewport, res.w, res.h);
+    if (src_width != wl_fixed_from_int(-1))
+      wp_viewport_set_source (window->video_viewport,
+          src_x, src_y, src_width, src_height);
   } else {
     gst_video_sink_center_rect (src, dst, &res, FALSE);
   }
@@ -571,4 +583,22 @@ gst_wl_window_set_render_rectangle (GstWlWindow * window, gint x, gint y,
 
   if (window->video_width != 0)
     wl_subsurface_set_desync (window->video_subsurface);
+}
+
+void
+gst_wl_window_set_source_crop (GstWlWindow * window, GstBuffer * buffer)
+{
+  GstVideoCropMeta *crop = NULL;
+  crop = gst_buffer_get_video_crop_meta(buffer);
+
+  if (crop) {
+    GST_DEBUG ("buffer crop x=%d y=%d width=%d height=%d\n",
+        crop->x, crop->y, crop->width, crop->height);
+    window->src_x = crop->x;
+    window->src_y = crop->y;
+    window->src_width = crop->width;
+    window->src_height = crop->height;
+  } else {
+    window->src_width = -1;
+  }
 }

@@ -71,6 +71,9 @@ struct _GstWlWindow
   /* when this is not set both the area_surface and the video_surface are not
    * visible and certain steps should be skipped */
   gboolean is_area_surface_mapped;
+
+  /* the coordinate of video crop */
+  gint src_x, src_y, src_width, src_height;
 };
 
 struct _GstWlWindowClass
@@ -95,6 +98,7 @@ void gst_wl_window_render (GstWlWindow * window, GstWlBuffer * buffer,
         const GstVideoInfo * info);
 void gst_wl_window_set_render_rectangle (GstWlWindow * window, gint x, gint y,
         gint w, gint h);
+void gst_wl_window_set_source_crop (GstWlWindow * window, GstBuffer * buffer);
 
 G_END_DECLS
 
