@@ -8,7 +8,9 @@ BUILT_SOURCES = \
 	fullscreen-shell-unstable-v1-protocol.c \
 	fullscreen-shell-unstable-v1-client-protocol.h \
 	xdg-shell-protocol.c \
-	xdg-shell-client-protocol.h
+	xdg-shell-client-protocol.h \
+	alpha-compositing-unstable-v1-protocol.c \
+	alpha-compositing-unstable-v1-client-protocol.h
 
 libgstwaylandsink_la_SOURCES =  \
 	gstwaylandsink.c \
@@ -23,7 +25,8 @@ nodist_libgstwaylandsink_la_SOURCES = \
 	viewporter-protocol.c \
 	linux-dmabuf-unstable-v1-protocol.c \
 	fullscreen-shell-unstable-v1-protocol.c \
-	xdg-shell-protocol.c
+	xdg-shell-protocol.c \
+	alpha-compositing-unstable-v1-protocol.c
 
 libgstwaylandsink_la_CFLAGS = \
 	$(GST_PLUGINS_BAD_CFLAGS) \
