@@ -28,6 +28,8 @@
 #include "wlshmallocator.h"
 #include "wlbuffer.h"
 
+#include "gstimxcommon.h"
+
 GST_DEBUG_CATEGORY_EXTERN (gstwayland_debug);
 #define GST_CAT_DEFAULT gstwayland_debug
 
@@ -175,6 +177,10 @@ gst_wl_window_finalize (GObject * gobject)
     wp_viewport_destroy (self->video_viewport);
 
   wl_proxy_wrapper_destroy (self->video_surface_wrapper);
+
+  if (self->blend_func)
+    zwp_blending_v1_destroy (self->blend_func);
+
   wl_subsurface_destroy (self->video_subsurface);
   wl_surface_destroy (self->video_surface);
 
@@ -227,6 +233,11 @@ gst_wl_window_new_internal (GstWlDisplay * display, GMutex * render_lock)
     window->video_viewport = wp_viewporter_get_viewport (display->viewporter,
         window->video_surface);
   }
+
+  if (display->alpha_compositing)
+    window->blend_func =
+        zwp_alpha_compositing_v1_get_blending (display->alpha_compositing,
+        window->area_surface);
 
   /* never accept input events on the video surface */
   region = wl_compositor_create_region (display->compositor);
@@ -414,7 +425,7 @@ gst_wl_window_resize_video_surface (GstWlWindow * window, gboolean commit)
   if (window->video_viewport) {
     gst_video_sink_center_rect (src, dst, &res, TRUE);
     wp_viewport_set_destination (window->video_viewport, res.w, res.h);
-    if (src_width != wl_fixed_from_int(-1))
+    if (src_width != wl_fixed_from_int (-1))
       wp_viewport_set_source (window->video_viewport,
           src_x, src_y, src_width, src_height);
   } else {
@@ -434,13 +445,11 @@ gst_wl_window_set_opaque (GstWlWindow * window, const GstVideoInfo * info)
 {
   struct wl_region *region;
 
-  /* Set area opaque */
-  region = wl_compositor_create_region (window->display->compositor);
-  wl_region_add (region, 0, 0, G_MAXINT32, G_MAXINT32);
-  wl_surface_set_opaque_region (window->area_surface, region);
-  wl_region_destroy (region);
-
   if (!GST_VIDEO_INFO_HAS_ALPHA (info)) {
+    /* for platform support overlay, video should not overlap graphic */
+    if (HAS_DCSS () || HAS_DPU ())
+      return;
+
     /* Set video opaque */
     region = wl_compositor_create_region (window->display->compositor);
     wl_region_add (region, 0, 0, G_MAXINT32, G_MAXINT32);
@@ -589,7 +598,7 @@ void
 gst_wl_window_set_source_crop (GstWlWindow * window, GstBuffer * buffer)
 {
   GstVideoCropMeta *crop = NULL;
-  crop = gst_buffer_get_video_crop_meta(buffer);
+  crop = gst_buffer_get_video_crop_meta (buffer);
 
   if (crop) {
     GST_DEBUG ("buffer crop x=%d y=%d width=%d height=%d\n",
@@ -600,5 +609,20 @@ gst_wl_window_set_source_crop (GstWlWindow * window, GstBuffer * buffer)
     window->src_height = crop->height;
   } else {
     window->src_width = -1;
+  }
+}
+
+void
+gst_wl_window_set_alpha (GstWlWindow * window, gfloat alpha)
+{
+  if (window && window->blend_func) {
+    zwp_blending_v1_set_alpha (window->blend_func,
+        wl_fixed_from_double (alpha));
+    if (alpha < 1.0)
+      zwp_blending_v1_set_blending (window->blend_func,
+          ZWP_BLENDING_V1_BLENDING_EQUATION_FROMSOURCE);
+    else
+      zwp_blending_v1_set_blending (window->blend_func,
+          ZWP_BLENDING_V1_BLENDING_EQUATION_PREMULTIPLIED);
   }
 }
