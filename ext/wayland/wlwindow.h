@@ -51,6 +51,7 @@ struct _GstWlWindow
   struct wl_subsurface *video_subsurface;
   struct wp_viewport *video_viewport;
   struct wl_shell_surface *shell_surface;
+  struct zwp_blending_v1 *blend_func;
 
   /* the size and position of the area_(sub)surface */
   GstVideoRectangle render_rectangle;
@@ -91,6 +92,7 @@ void gst_wl_window_render (GstWlWindow * window, GstWlBuffer * buffer,
 void gst_wl_window_set_render_rectangle (GstWlWindow * window, gint x, gint y,
         gint w, gint h);
 void gst_wl_window_set_source_crop (GstWlWindow * window, GstBuffer * buffer);
+void gst_wl_window_set_alpha (GstWlWindow * window, gfloat alpha);
 
 G_END_DECLS
 

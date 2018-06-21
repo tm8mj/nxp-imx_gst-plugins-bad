@@ -96,6 +96,9 @@ gst_wl_window_finalize (GObject * gobject)
   if (self->video_viewport)
     wp_viewport_destroy (self->video_viewport);
 
+  if (self->blend_func)
+    zwp_blending_v1_destroy (self->blend_func);
+
   wl_subsurface_destroy (self->video_subsurface);
   wl_surface_destroy (self->video_surface);
 
@@ -141,6 +144,10 @@ gst_wl_window_new_internal (GstWlDisplay * display, GMutex * render_lock)
     window->video_viewport = wp_viewporter_get_viewport (display->viewporter,
         window->video_surface);
   }
+
+  if (display->alpha_compositing)
+    window->blend_func = zwp_alpha_compositing_v1_get_blending(
+        display->alpha_compositing, window->area_surface);
 
   /* do not accept input */
   region = wl_compositor_create_region (display->compositor);
@@ -431,5 +438,14 @@ gst_wl_window_set_source_crop (GstWlWindow * window, GstBuffer * buffer)
     window->src_height = crop->height;
   } else {
     window->src_width = -1;
+  }
+}
+
+void
+gst_wl_window_set_alpha (GstWlWindow * window, gfloat alpha)
+{
+  if (window->blend_func) {
+    zwp_blending_v1_set_alpha(window->blend_func, wl_fixed_from_double(alpha));
+    zwp_blending_v1_set_blending(window->blend_func, ZWP_BLENDING_V1_BLENDING_EQUATION_FROMSOURCE);
   }
 }
