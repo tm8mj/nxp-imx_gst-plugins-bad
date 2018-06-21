@@ -102,6 +102,9 @@ gst_wl_display_finalize (GObject * gobject)
   if (self->fullscreen_shell)
     zwp_fullscreen_shell_v1_release (self->fullscreen_shell);
 
+  if (self->alpha_compositing)
+    zwp_alpha_compositing_v1_destroy (self->alpha_compositing);
+
   if (self->compositor)
     wl_compositor_destroy (self->compositor);
 
@@ -158,6 +161,9 @@ gst_wl_display_check_format_for_shm (GstWlDisplay * display,
   enum wl_shm_format shm_fmt;
   GArray *formats;
   guint i;
+
+  if (format == GST_VIDEO_FORMAT_NV12_10LE)
+    return TRUE;
 
   shm_fmt = gst_video_format_to_wl_shm_format (format);
   if (shm_fmt == (enum wl_shm_format) -1)
@@ -237,6 +243,9 @@ registry_handle_global (void *data, struct wl_registry *registry,
     self->dmabuf =
         wl_registry_bind (registry, id, &zwp_linux_dmabuf_v1_interface, 1);
     zwp_linux_dmabuf_v1_add_listener (self->dmabuf, &dmabuf_listener, self);
+  } else if (g_strcmp0 (interface, "zwp_alpha_compositing_v1") == 0) {
+    self->alpha_compositing =
+        wl_registry_bind (registry, id, &zwp_alpha_compositing_v1_interface, 1);
   }
 }
 

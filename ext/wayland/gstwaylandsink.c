@@ -69,7 +69,8 @@ enum
 {
   PROP_0,
   PROP_DISPLAY,
-  PROP_FULLSCREEN
+  PROP_FULLSCREEN,
+  PROP_ALPHA
 };
 
 GST_DEBUG_CATEGORY (gstwayland_debug);
@@ -216,12 +217,18 @@ gst_wayland_sink_class_init (GstWaylandSinkClass * klass)
           "Whether the surface should be made fullscreen ", FALSE,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
+  g_object_class_install_property (gobject_class, PROP_ALPHA,
+      g_param_spec_float ("alpha", "Wayland surface alpha", "Wayland "
+          "surface alpha value, apply custom alpha value to wayland surface",
+          0.0f, 1.0f, 0.0f, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
   gst_type_mark_as_plugin_api (GST_TYPE_WAYLAND_VIDEO, 0);
 }
 
 static void
 gst_wayland_sink_init (GstWaylandSink * sink)
 {
+  sink->alpha = 0.0f;
   g_mutex_init (&sink->display_lock);
   g_mutex_init (&sink->render_lock);
   g_cond_init (&sink->redraw_wait);
@@ -257,6 +264,8 @@ gst_wayland_sink_get_property (GObject * object,
       GST_OBJECT_LOCK (sink);
       g_value_set_boolean (value, sink->fullscreen);
       GST_OBJECT_UNLOCK (sink);
+    case PROP_ALPHA:
+      g_value_set_float (value, sink->alpha);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -280,6 +289,8 @@ gst_wayland_sink_set_property (GObject * object,
       GST_OBJECT_LOCK (sink);
       gst_wayland_sink_set_fullscreen (sink, g_value_get_boolean (value));
       GST_OBJECT_UNLOCK (sink);
+    case PROP_ALPHA:
+      sink->alpha = g_value_get_float (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -438,11 +449,12 @@ gst_wayland_sink_change_state (GstElement * element, GstStateChange transition)
       }
       g_mutex_unlock (&sink->display_lock);
       g_clear_object (&sink->pool);
-      
+
       if (sink->run_time > 0) {
-        g_print ("Total showed frames (%lld), playing for (%"GST_TIME_FORMAT"), fps (%.3f).\n",
-                sink->frame_showed, GST_TIME_ARGS (sink->run_time),
-                (gfloat)GST_SECOND * sink->frame_showed / sink->run_time);
+        g_print ("Total showed frames (%lld), playing for (%" GST_TIME_FORMAT
+            "), fps (%.3f).\n", sink->frame_showed,
+            GST_TIME_ARGS (sink->run_time),
+            (gfloat) GST_SECOND * sink->frame_showed / sink->run_time);
       }
       sink->frame_showed = 0;
       sink->run_time = 0;
@@ -738,6 +750,7 @@ gst_wayland_sink_show_frame (GstVideoSink * vsink, GstBuffer * buffer)
       g_signal_connect_object (sink->window, "closed",
           G_CALLBACK (on_window_closed), sink, 0);
     }
+    gst_wl_window_set_alpha (sink->window, sink->alpha);
   }
 
   while (sink->redraw_pending)
@@ -746,7 +759,7 @@ gst_wayland_sink_show_frame (GstVideoSink * vsink, GstBuffer * buffer)
   /* make sure that the application has called set_render_rectangle() */
   if (G_UNLIKELY (sink->window->render_rectangle.w == 0))
     goto no_window_size;
-  
+
   gst_wl_window_set_source_crop (sink->window, buffer);
 
   wlbuffer = gst_buffer_get_wl_buffer (sink->display, buffer);
@@ -1080,13 +1093,13 @@ plugin_init (GstPlugin * plugin)
       " wayland video sink");
 
   gst_wl_shm_allocator_register ();
-  
-  if (HAS_DPU()) {
-    if (HAS_VPU())
+
+  if (HAS_DPU ()) {
+    if (HAS_VPU ())
       rank = IMX_GST_PLUGIN_RANK + 1;
-  } else if (IS_IMX8MM()) {
-      rank = IMX_GST_PLUGIN_RANK + 1;
-  } else if (HAS_DCSS()) {
+  } else if (IS_IMX8MM ()) {
+    rank = IMX_GST_PLUGIN_RANK + 1;
+  } else if (HAS_DCSS ()) {
     rank = IMX_GST_PLUGIN_RANK;
   }
 
