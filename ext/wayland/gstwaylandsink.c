@@ -67,7 +67,8 @@ enum
 enum
 {
   PROP_0,
-  PROP_DISPLAY
+  PROP_DISPLAY,
+  PROP_ALPHA
 };
 
 GST_DEBUG_CATEGORY (gstwayland_debug);
@@ -208,11 +209,17 @@ gst_wayland_sink_class_init (GstWaylandSinkClass * klass)
       g_param_spec_string ("display", "Wayland Display name", "Wayland "
           "display name to connect to, if not supplied via the GstContext",
           NULL, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  
+  g_object_class_install_property (gobject_class, PROP_ALPHA,
+      g_param_spec_float ("alpha", "Wayland surface alpha", "Wayland "
+          "surface alpha value, apply custom alpha value to wayland surface",
+          0.0f, 1.0f, 0.0f, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 }
 
 static void
 gst_wayland_sink_init (GstWaylandSink * sink)
 {
+  sink->alpha = 0.0f;
   g_mutex_init (&sink->display_lock);
   g_mutex_init (&sink->render_lock);
   g_cond_init (&sink->redraw_wait);
@@ -232,6 +239,9 @@ gst_wayland_sink_get_property (GObject * object,
       g_value_set_string (value, sink->display_name);
       GST_OBJECT_UNLOCK (sink);
       break;
+    case PROP_ALPHA:
+      g_value_set_float (value, sink->alpha);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -249,6 +259,9 @@ gst_wayland_sink_set_property (GObject * object,
       GST_OBJECT_LOCK (sink);
       sink->display_name = g_value_dup_string (value);
       GST_OBJECT_UNLOCK (sink);
+      break;
+    case PROP_ALPHA:
+      sink->alpha = g_value_get_float (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -688,6 +701,7 @@ gst_wayland_sink_show_frame (GstVideoSink * vsink, GstBuffer * buffer)
       sink->window = gst_wl_window_new_toplevel (sink->display,
           &sink->video_info, &sink->render_lock);
     }
+    gst_wl_window_set_alpha (sink->window, sink->alpha);
   }
 
   while (sink->redraw_pending)
