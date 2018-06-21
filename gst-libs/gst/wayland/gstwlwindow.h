@@ -55,6 +55,15 @@ GST_WL_API
 struct wl_subsurface *gst_wl_window_get_subsurface (GstWlWindow * self);
 
 GST_WL_API
+struct wl_subsurface *gst_wl_window_get_area_surface (GstWlWindow * self);
+
+GST_WL_API
+gint gst_wl_window_get_rectangle_w (GstWlWindow * self);
+
+GST_WL_API
+gint gst_wl_window_get_rectangle_h (GstWlWindow * self);
+
+GST_WL_API
 gboolean gst_wl_window_is_toplevel (GstWlWindow * self);
 
 GST_WL_API
@@ -67,6 +76,9 @@ void gst_wl_window_set_render_rectangle (GstWlWindow * self, gint x, gint y,
 
 GST_WL_API
 void gst_wl_window_set_source_crop (GstWlWindow * self, GstBuffer * buffer);
+
+GST_WL_API
+void gst_wl_window_set_alpha (GstWlWindow * self, gfloat alpha);
 
 GST_WL_API
 const GstVideoRectangle *gst_wl_window_get_render_rectangle (GstWlWindow * self);
