@@ -58,6 +58,9 @@ struct _GstWaylandSink
   GstBufferPool *pool;
   gboolean use_dmabuf;
 
+  /* alpha compositing */
+  gfloat alpha;
+
   gboolean video_info_changed;
   GstVideoInfo video_info;
   gboolean fullscreen;
