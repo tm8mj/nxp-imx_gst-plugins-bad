@@ -6,7 +6,9 @@ BUILT_SOURCES = \
 	linux-dmabuf-unstable-v1-protocol.c \
 	linux-dmabuf-unstable-v1-client-protocol.h \
 	alpha-compositing-unstable-v1-protocol.c \
-	alpha-compositing-unstable-v1-client-protocol.h
+	alpha-compositing-unstable-v1-client-protocol.h	\
+	hdr10-metadata-unstable-v1-protocol.c \
+	hdr10-metadata-unstable-v1-client-protocol.h
 
 libgstwaylandsink_la_SOURCES =  \
 	gstwaylandsink.c \
@@ -20,7 +22,8 @@ libgstwaylandsink_la_SOURCES =  \
 nodist_libgstwaylandsink_la_SOURCES = \
 	viewporter-protocol.c \
 	linux-dmabuf-unstable-v1-protocol.c \
-	alpha-compositing-unstable-v1-protocol.c
+	alpha-compositing-unstable-v1-protocol.c \
+	hdr10-metadata-unstable-v1-protocol.c
 
 libgstwaylandsink_la_CFLAGS = \
 	$(GST_PLUGINS_BAD_CFLAGS) \
