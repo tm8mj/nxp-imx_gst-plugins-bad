@@ -29,6 +29,7 @@
 #include "linux-dmabuf-unstable-v1-client-protocol.h"
 #include "fullscreen-shell-unstable-v1-client-protocol.h"
 #include "alpha-compositing-unstable-v1-client-protocol.h"
+#include "hdr10-metadata-unstable-v1-client-protocol.h"
 
 G_BEGIN_DECLS
 
@@ -62,6 +63,7 @@ struct _GstWlDisplay
   struct wp_viewporter *viewporter;
   struct zwp_linux_dmabuf_v1 *dmabuf;
   struct zwp_alpha_compositing_v1 *alpha_compositing;
+  struct zwp_hdr10_metadata_v1 *hdr10_metadata;
   GArray *shm_formats;
   GArray *dmabuf_formats;
 
