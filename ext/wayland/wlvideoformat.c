@@ -110,6 +110,7 @@ static const wl_DmabufVideoFormat dmabuf_formats[] = {
   {DRM_FORMAT_RGB565, GST_VIDEO_FORMAT_RGB16},
   {DRM_FORMAT_YUYV, GST_VIDEO_FORMAT_YUY2},
   {DRM_FORMAT_NV12, GST_VIDEO_FORMAT_NV12},
+  {DRM_FORMAT_P010, GST_VIDEO_FORMAT_NV12_10LE},
 };
 
 enum wl_shm_format

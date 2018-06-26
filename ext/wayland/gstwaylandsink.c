@@ -51,6 +51,7 @@
 
 #include <gst/wayland/wayland.h>
 #include <gst/video/videooverlay.h>
+#include <gst/video/gstvideohdr10meta.h>
 
 #include <drm_fourcc.h>
 #include <xf86drm.h>
@@ -105,6 +106,7 @@ static gboolean
 gst_wayland_sink_propose_allocation (GstBaseSink * bsink, GstQuery * query);
 static gboolean gst_wayland_sink_show_frame (GstVideoSink * bsink,
     GstBuffer * buffer);
+static void gst_wayland_sink_config_hdr10 (GstWaylandSink *sink, GstBuffer * buf);
 
 /* VideoOverlay interface */
 static void gst_wayland_sink_videooverlay_init (GstVideoOverlayInterface *
@@ -391,6 +393,7 @@ gst_wayland_sink_change_state (GstElement * element, GstStateChange transition)
       break;
     case GST_STATE_CHANGE_PAUSED_TO_READY:
       gst_buffer_replace (&sink->last_buffer, NULL);
+      gst_wayland_sink_config_hdr10 (sink, NULL);
       if (sink->window) {
         if (gst_wl_window_is_toplevel (sink->window)) {
           g_clear_object (&sink->window);
@@ -487,6 +490,14 @@ gst_wayland_sink_get_caps (GstBaseSink * bsink, GstCaps * filter)
       g_value_init (&value, G_TYPE_STRING);
       fmt = g_array_index (formats, uint32_t, i);
       g_value_set_static_string (&value, gst_wl_shm_format_to_string (fmt));
+      gst_value_list_append_and_take_value (&shm_list, &value);
+    }
+    /** FIXME:work around for 10bit format not in the none capsfeature list
+     * need vpu add memory:DMABuf capsfeature when output dmabuf
+    */
+    if (HAS_DCSS()) {
+      g_value_init (&value, G_TYPE_STRING);
+      g_value_set_static_string (&value,  gst_video_format_to_string(GST_VIDEO_FORMAT_NV12_10LE));
       gst_value_list_append_and_take_value (&shm_list, &value);
     }
 
@@ -671,6 +682,68 @@ render_last_buffer (GstWaylandSink * sink, gboolean redraw)
   gst_wl_window_render (sink->window, wlbuffer, info);
 }
 
+static void
+gst_wayland_sink_config_hdr10 (GstWaylandSink *sink, GstBuffer * buf)
+{
+  GstVideoHdr10Meta *meta = NULL;
+  GstWlDisplay *display = sink->display;
+  guint32 eotf = 0;
+  guint32 type = 0;
+  guint32 display_primaries_red = 0;
+  guint32 display_primaries_green = 0;
+  guint32 display_primaries_blue = 0;
+  guint32 white_point = 0;
+  guint32 mastering_display_luminance = 0;
+  guint32 max_cll = 0;
+  guint32 max_fall = 0;
+
+  /* buf could be NULL when resize */
+  if (buf)
+    meta = gst_buffer_get_video_hdr10_meta (buf);
+
+  if (meta) {
+    GST_INFO_OBJECT (sink, "redPrimary x=%d y=%d", meta->hdr10meta.redPrimary[0], meta->hdr10meta.redPrimary[1]);
+    GST_INFO_OBJECT (sink, "greenPrimary x=%d y=%d", meta->hdr10meta.greenPrimary[0], meta->hdr10meta.greenPrimary[1]);
+    GST_INFO_OBJECT (sink, "bluePrimary x=%d y=%d", meta->hdr10meta.bluePrimary[0], meta->hdr10meta.bluePrimary[1]);
+    GST_INFO_OBJECT (sink, "whitePoint x=%d y=%d", meta->hdr10meta.whitePoint[0], meta->hdr10meta.whitePoint[1]);
+    GST_INFO_OBJECT (sink, "maxMasteringLuminance %d", meta->hdr10meta.maxMasteringLuminance);
+    GST_INFO_OBJECT (sink, "minMasteringLuminance %d", meta->hdr10meta.minMasteringLuminance);
+    GST_INFO_OBJECT (sink, "maxContentLightLevel %d", meta->hdr10meta.maxContentLightLevel);
+    GST_INFO_OBJECT (sink, "maxFrameAverageLightLevel %d", meta->hdr10meta.maxFrameAverageLightLevel);
+    GST_INFO_OBJECT (sink, "transferCharacteristics %d", meta->hdr10meta.transferCharacteristics);
+    GST_INFO_OBJECT (sink, "colourPrimaries %d", meta->hdr10meta.colourPrimaries);
+    GST_INFO_OBJECT (sink, "matrixCoeffs %d", meta->hdr10meta.matrixCoeffs);
+    GST_INFO_OBJECT (sink, "fullRange %d", meta->hdr10meta.fullRange);
+    GST_INFO_OBJECT (sink, "chromaSampleLocTypeTopField %d", meta->hdr10meta.chromaSampleLocTypeTopField);
+    GST_INFO_OBJECT (sink, "chromaSampleLocTypeBottomField %d", meta->hdr10meta.chromaSampleLocTypeBottomField);
+
+    eotf = SMPTE_ST2084;
+    type = 0;
+    display_primaries_red = (guint)(meta->hdr10meta.redPrimary[0] << 16 | meta->hdr10meta.redPrimary[1]);
+    display_primaries_green = (guint)(meta->hdr10meta.greenPrimary[0] << 16 | meta->hdr10meta.greenPrimary[1]);
+    display_primaries_blue = (guint)(meta->hdr10meta.bluePrimary[0] << 16 | meta->hdr10meta.bluePrimary[1]);
+    white_point = (guint)(meta->hdr10meta.whitePoint[0] << 16 | meta->hdr10meta.whitePoint[1]);
+    mastering_display_luminance = (guint)(((meta->hdr10meta.maxMasteringLuminance / 10000) & 0xffff) << 16
+                                          | (meta->hdr10meta.minMasteringLuminance & 0xffff));
+    max_cll = meta->hdr10meta.maxContentLightLevel;
+    max_fall = meta->hdr10meta.maxFrameAverageLightLevel;
+  }
+
+  if (display->hdr10_metadata) {
+    zwp_hdr10_metadata_v1_set_metadata (display->hdr10_metadata,
+        eotf,
+        type,
+        display_primaries_red,
+        display_primaries_green,
+        display_primaries_blue,
+        white_point,
+        mastering_display_luminance,
+        max_cll,
+        max_fall);
+    wl_display_roundtrip (display->display);
+  }
+}
+
 static GstFlowReturn
 gst_wayland_sink_show_frame (GstVideoSink * vsink, GstBuffer * buffer)
 {
@@ -712,6 +785,9 @@ gst_wayland_sink_show_frame (GstVideoSink * vsink, GstBuffer * buffer)
     goto no_window_size;
   
   gst_wl_window_set_source_crop (sink->window, buffer);
+
+  if (sink->frame_showed == 0)
+    gst_wayland_sink_config_hdr10 (sink, buffer);
 
   wlbuffer = gst_buffer_get_wl_buffer (buffer);
 
