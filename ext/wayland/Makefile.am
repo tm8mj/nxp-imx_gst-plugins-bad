@@ -10,7 +10,9 @@ BUILT_SOURCES = \
 	xdg-shell-protocol.c \
 	xdg-shell-client-protocol.h \
 	alpha-compositing-unstable-v1-protocol.c \
-	alpha-compositing-unstable-v1-client-protocol.h
+	alpha-compositing-unstable-v1-client-protocol.h	\
+	hdr10-metadata-unstable-v1-protocol.c \
+	hdr10-metadata-unstable-v1-client-protocol.h
 
 libgstwaylandsink_la_SOURCES =  \
 	gstwaylandsink.c \
@@ -26,7 +28,8 @@ nodist_libgstwaylandsink_la_SOURCES = \
 	linux-dmabuf-unstable-v1-protocol.c \
 	fullscreen-shell-unstable-v1-protocol.c \
 	xdg-shell-protocol.c \
-	alpha-compositing-unstable-v1-protocol.c
+	alpha-compositing-unstable-v1-protocol.c \
+	hdr10-metadata-unstable-v1-protocol.c
 
 libgstwaylandsink_la_CFLAGS = \
 	$(GST_PLUGINS_BAD_CFLAGS) \

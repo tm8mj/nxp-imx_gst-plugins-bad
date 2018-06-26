@@ -99,6 +99,9 @@ gst_wl_display_finalize (GObject * gobject)
   if (self->alpha_compositing)
     zwp_alpha_compositing_v1_destroy(self->alpha_compositing);
 
+  if (self->hdr10_metadata)
+    zwp_hdr10_metadata_v1_destroy (self->hdr10_metadata);
+
   if (self->compositor)
     wl_compositor_destroy (self->compositor);
 
