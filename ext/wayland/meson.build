@@ -5,7 +5,8 @@ wl_sources = [
     'wldisplay.c',
     'wlwindow.c',
     'wlvideoformat.c',
-    'wllinuxdmabuf.c'
+    'wllinuxdmabuf.c',
+    'wlutils.c',
 ]
 
 libdrm_dep = dependency('libdrm', version: '>= 2.4.55', required:get_option('wayland'))
