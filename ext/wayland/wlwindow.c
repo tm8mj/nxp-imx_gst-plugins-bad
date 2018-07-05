@@ -27,6 +27,7 @@
 #include "wlwindow.h"
 #include "wlshmallocator.h"
 #include "wlbuffer.h"
+#include "wlutils.h"
 
 #include "gstimxcommon.h"
 
@@ -158,6 +159,7 @@ gst_wl_window_init (GstWlWindow * self)
   self->src_y = 0;
   self->src_width = -1;
   self->src_height = 0;
+  self->scale = 1;
 }
 
 static void
@@ -243,6 +245,11 @@ gst_wl_window_new_internal (GstWlDisplay * display, GMutex * render_lock)
   region = wl_compositor_create_region (display->compositor);
   wl_surface_set_input_region (window->video_surface, region);
   wl_region_destroy (region);
+
+  if (!gst_wl_init_buffer_scale (display->width, display->height,
+          &window->scale)) {
+    GST_WARNING ("init buffer scale fail, fallback to scale=%d", window->scale);
+  }
 
   return window;
 }
@@ -343,7 +350,8 @@ gst_wl_window_new_toplevel (GstWlDisplay * display, const GstVideoInfo * info,
     /* set the initial size to be the same as the reported video size */
     gint width =
         gst_util_uint64_scale_int_round (info->width, info->par_n, info->par_d);
-    gst_wl_window_set_render_rectangle (window, 0, 0, width, info->height);
+    gst_wl_window_set_render_rectangle (window, 0, 0, width / window->scale,
+        info->height / window->scale);
   }
 
   return window;
@@ -411,10 +419,11 @@ gst_wl_window_resize_video_surface (GstWlWindow * window, gboolean commit)
   GstVideoRectangle dst = { 0, };
   GstVideoRectangle res;
 
-  wl_fixed_t src_x = wl_fixed_from_int (window->src_x);
-  wl_fixed_t src_y = wl_fixed_from_int (window->src_y);
-  wl_fixed_t src_width = wl_fixed_from_int (window->src_width);
-  wl_fixed_t src_height = wl_fixed_from_int (window->src_height);
+  wl_fixed_t src_x = wl_fixed_from_int (window->src_x / window->scale);
+  wl_fixed_t src_y = wl_fixed_from_int (window->src_y / window->scale);
+  wl_fixed_t src_width = wl_fixed_from_int (window->src_width / window->scale);
+  wl_fixed_t src_height =
+      wl_fixed_from_int (window->src_height / window->scale);
 
   /* center the video_subsurface inside area_subsurface */
   src.w = window->video_width;
@@ -425,7 +434,7 @@ gst_wl_window_resize_video_surface (GstWlWindow * window, gboolean commit)
   if (window->video_viewport) {
     gst_video_sink_center_rect (src, dst, &res, TRUE);
     wp_viewport_set_destination (window->video_viewport, res.w, res.h);
-    if (src_width != wl_fixed_from_int (-1))
+    if (src_width != wl_fixed_from_int (-1 / window->scale))
       wp_viewport_set_source (window->video_viewport,
           src_x, src_y, src_width, src_height);
   } else {
@@ -474,6 +483,7 @@ gst_wl_window_render (GstWlWindow * window, GstWlBuffer * buffer,
 
   if (G_LIKELY (buffer)) {
     gst_wl_buffer_attach (buffer, window->video_surface_wrapper);
+    wl_surface_set_buffer_scale (window->video_surface_wrapper, window->scale);
     wl_surface_damage_buffer (window->video_surface_wrapper, 0, 0, G_MAXINT32,
         G_MAXINT32);
     wl_surface_commit (window->video_surface_wrapper);
@@ -486,6 +496,7 @@ gst_wl_window_render (GstWlWindow * window, GstWlBuffer * buffer,
   } else {
     /* clear both video and parent surfaces */
     wl_surface_attach (window->video_surface_wrapper, NULL, 0, 0);
+    wl_surface_set_buffer_scale (window->video_surface_wrapper, window->scale);
     wl_surface_commit (window->video_surface_wrapper);
     wl_surface_attach (window->area_surface_wrapper, NULL, 0, 0);
     wl_surface_commit (window->area_surface_wrapper);
