@@ -27,6 +27,7 @@
 #include "wlwindow.h"
 #include "wlshmallocator.h"
 #include "wlbuffer.h"
+#include "wlutils.h"
 
 GST_DEBUG_CATEGORY_EXTERN (gstwayland_debug);
 #define GST_CAT_DEFAULT gstwayland_debug
@@ -154,6 +155,7 @@ gst_wl_window_init (GstWlWindow * self)
   self->src_y = 0;
   self->src_width = -1;
   self->src_height = 0;
+  self->scale = 1;
 }
 
 static void
@@ -236,6 +238,10 @@ gst_wl_window_new_internal (GstWlDisplay * display, GMutex * render_lock)
   /* do not accept input */
   wl_surface_set_input_region (window->area_surface, NULL);
   wl_surface_set_input_region (window->video_surface, NULL);
+
+  if (!gst_wl_init_buffer_scale(display->width, display->height, &window->scale)) {
+    GST_WARNING ("init buffer scale fail, fallback to scale=%d", window->scale);
+  }
 
   return window;
 }
@@ -326,7 +332,7 @@ gst_wl_window_new_toplevel (GstWlDisplay * display, const GstVideoInfo * info,
   /* set the initial size to be the same as the reported video size */
   width =
       gst_util_uint64_scale_int_round (info->width, info->par_n, info->par_d);
-  gst_wl_window_set_render_rectangle (window, 0, 0, width, info->height);
+  gst_wl_window_set_render_rectangle (window, 0, 0, width / window->scale, info->height / window->scale);
 
   return window;
 
@@ -385,10 +391,10 @@ gst_wl_window_resize_video_surface (GstWlWindow * window, gboolean commit)
   GstVideoRectangle dst = { 0, };
   GstVideoRectangle res;
 
-  wl_fixed_t src_x = wl_fixed_from_int (window->src_x);
-  wl_fixed_t src_y = wl_fixed_from_int (window->src_y);
-  wl_fixed_t src_width = wl_fixed_from_int (window->src_width);
-  wl_fixed_t src_height = wl_fixed_from_int (window->src_height);
+  wl_fixed_t src_x = wl_fixed_from_int (window->src_x / window->scale);
+  wl_fixed_t src_y = wl_fixed_from_int (window->src_y / window->scale);
+  wl_fixed_t src_width = wl_fixed_from_int (window->src_width / window->scale);
+  wl_fixed_t src_height = wl_fixed_from_int (window->src_height / window->scale);
 
   /* center the video_subsurface inside area_subsurface */
   src.w = window->video_width;
@@ -468,6 +474,8 @@ gst_wl_window_render (GstWlWindow * window, GstWlBuffer * buffer,
   else
     wl_surface_attach (window->video_surface_wrapper, NULL, 0, 0);
 
+  wl_surface_set_buffer_scale(window->video_surface_wrapper, window->scale);
+  
   wl_surface_damage (window->video_surface_wrapper, 0, 0,
       window->video_rectangle.w, window->video_rectangle.h);
   wl_surface_commit (window->video_surface_wrapper);
