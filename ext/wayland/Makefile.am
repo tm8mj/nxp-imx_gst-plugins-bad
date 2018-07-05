@@ -21,7 +21,8 @@ libgstwaylandsink_la_SOURCES =  \
 	wldisplay.c \
 	wlwindow.c \
 	wlvideoformat.c \
-	wllinuxdmabuf.c
+	wllinuxdmabuf.c	\
+	wlutils.c
 
 nodist_libgstwaylandsink_la_SOURCES = \
 	viewporter-protocol.c \
@@ -51,7 +52,8 @@ noinst_HEADERS = \
 	wldisplay.h \
 	wlwindow.h \
 	wlvideoformat.h \
-	wllinuxdmabuf.h
+	wllinuxdmabuf.h \
+	wlutils.h
 
 CLEANFILES = $(BUILT_SOURCES)
 
