@@ -77,6 +77,9 @@ struct _GstWlWindow
 
   /* the coordinate of video crop */
   gint src_x, src_y, src_width, src_height;
+
+  /* video buffer scale */
+  guint scale;
 };
 
 struct _GstWlWindowClass
