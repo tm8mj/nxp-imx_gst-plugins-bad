@@ -59,11 +59,15 @@ struct _GstWlDisplay
   struct xdg_wm_base *xdg_wm_base;
   struct zwp_fullscreen_shell_v1 *fullscreen_shell;
   struct wl_shm *shm;
+  struct wl_output *output;
   struct wp_viewporter *viewporter;
   struct zwp_linux_dmabuf_v1 *dmabuf;
   struct zwp_alpha_compositing_v1 *alpha_compositing;
   GArray *shm_formats;
   GArray *dmabuf_formats;
+
+  /* real display resolution */
+  gint width, height;
 
   /* private */
   gboolean own_display;

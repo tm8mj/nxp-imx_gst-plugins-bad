@@ -49,6 +49,8 @@ gst_wl_display_init (GstWlDisplay * self)
   self->dmabuf_formats = g_array_new (FALSE, FALSE, sizeof (uint32_t));
   self->wl_fd_poll = gst_poll_new (TRUE);
   self->buffers = g_hash_table_new (g_direct_hash, g_direct_equal);
+  self->width = -1;
+  self->height = -1;
   g_mutex_init (&self->buffers_mutex);
 }
 
@@ -212,6 +214,49 @@ static const struct xdg_wm_base_listener xdg_wm_base_listener = {
   handle_xdg_wm_base_ping
 };
 
+output_handle_geometry (void *data, struct wl_output *wl_output,
+    int32_t x, int32_t y,
+    int32_t physical_width, int32_t physical_height,
+    int32_t subpixel,
+    const char *make, const char *model, int32_t output_transform)
+{
+  /* Nothing to do now */
+}
+
+static void
+output_handle_mode (void *data, struct wl_output *wl_output,
+    uint32_t flags, int32_t width, int32_t height, int32_t refresh)
+{
+  GstWlDisplay *self = data;
+
+  /* we only care about the current mode */
+  if (flags & WL_OUTPUT_MODE_CURRENT) {
+    self->width = width;
+    self->height = height;
+  }
+}
+
+static void
+output_handle_done (void *data, struct wl_output *wl_output)
+{
+  /* don't bother waiting for this; there's no good reason a
+   * compositor will wait more than one roundtrip before sending
+   * these initial events. */
+}
+
+static void
+output_handle_scale (void *data, struct wl_output *wl_output, int32_t scale)
+{
+  /* Nothing to do now */
+}
+
+static const struct wl_output_listener output_listener = {
+  output_handle_geometry,
+  output_handle_mode,
+  output_handle_done,
+  output_handle_scale,
+};
+
 static void
 registry_handle_global (void *data, struct wl_registry *registry,
     uint32_t id, const char *interface, uint32_t version)
@@ -246,6 +291,10 @@ registry_handle_global (void *data, struct wl_registry *registry,
   } else if (g_strcmp0 (interface, "zwp_alpha_compositing_v1") == 0) {
     self->alpha_compositing =
         wl_registry_bind (registry, id, &zwp_alpha_compositing_v1_interface, 1);
+  } else if (g_strcmp0 (interface, "wl_output") == 0) {
+    self->output =
+        wl_registry_bind (registry, id, &wl_output_interface, MIN (version, 2));
+    wl_output_add_listener (self->output, &output_listener, self);
   }
 }
 
