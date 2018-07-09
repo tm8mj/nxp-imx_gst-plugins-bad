@@ -1127,7 +1127,7 @@ plugin_init (GstPlugin * plugin)
   } else if (IS_IMX8MM()) {
       rank = IMX_GST_PLUGIN_RANK + 1;
   } else if (HAS_DCSS()) {
-    rank = IMX_GST_PLUGIN_RANK;
+    rank = IMX_GST_PLUGIN_RANK + 1;
   }
 
   return gst_element_register (plugin, "waylandsink", rank,
