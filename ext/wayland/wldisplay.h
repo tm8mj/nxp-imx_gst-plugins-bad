@@ -66,6 +66,9 @@ struct _GstWlDisplay
   /* real display resolution */
   gint width, height;
 
+  /* preferred window resolution */
+  gint preferred_width, preferred_height;
+
   /* private */
   gboolean own_display;
   GThread *thread;
