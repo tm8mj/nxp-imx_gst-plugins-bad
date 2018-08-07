@@ -64,6 +64,9 @@ struct _GstWaylandSink
   gboolean video_info_changed;
   GstVideoInfo video_info;
 
+  /* preferred window resolution */
+  gint preferred_width, preferred_height;
+
   gchar *display_name;
 
   gboolean redraw_pending;
