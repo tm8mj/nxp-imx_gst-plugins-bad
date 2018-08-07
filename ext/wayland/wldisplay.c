@@ -51,6 +51,8 @@ gst_wl_display_init (GstWlDisplay * self)
   self->buffers = g_hash_table_new (g_direct_hash, g_direct_equal);
   self->width = -1;
   self->height = -1;
+  self->preferred_width = -1;
+  self->preferred_height = -1;
   g_mutex_init (&self->buffers_mutex);
 }
 
