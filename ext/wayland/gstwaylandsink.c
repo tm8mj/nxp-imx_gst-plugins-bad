@@ -450,12 +450,12 @@ gst_wayland_sink_change_state (GstElement * element, GstStateChange transition)
       break;
     case GST_STATE_CHANGE_PAUSED_TO_READY:
       gst_buffer_replace (&sink->last_buffer, NULL);
-      gst_wl_window_set_alpha (sink->window, 1.0);
-      wl_surface_damage (sink->window->area_surface, 0, 0,
-          sink->window->render_rectangle.w, sink->window->render_rectangle.h);
-      wl_surface_commit (sink->window->area_surface);
-      wl_display_roundtrip (sink->display->display);
       if (sink->window) {
+        gst_wl_window_set_alpha (sink->window, 1.0);
+        wl_surface_damage (sink->window->area_surface, 0, 0,
+            sink->window->render_rectangle.w, sink->window->render_rectangle.h);
+        wl_surface_commit (sink->window->area_surface);
+        wl_display_roundtrip (sink->display->display);
         if (gst_wl_window_is_toplevel (sink->window)) {
           g_clear_object (&sink->window);
         } else {

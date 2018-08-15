@@ -644,7 +644,7 @@ gst_wl_window_set_source_crop (GstWlWindow * window, GstBuffer * buffer)
 void
 gst_wl_window_set_alpha (GstWlWindow * window, gfloat alpha)
 {
-  if (window->blend_func) {
+  if (window && window->blend_func) {
     zwp_blending_v1_set_alpha (window->blend_func,
         wl_fixed_from_double (alpha));
     if (alpha < 1.0)
