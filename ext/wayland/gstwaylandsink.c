@@ -47,6 +47,13 @@
 
 #include <gst/video/videooverlay.h>
 
+#ifdef HAVE_DMABUFHEAPS_ALLOCATOR
+#include <gst/allocators/gstdmabufheaps.h>
+#endif
+#ifdef HAVE_ION_ALLOCATOR
+#include <gst/allocators/gstionmemory.h>
+#endif
+
 #include <drm_fourcc.h>
 #include <xf86drm.h>
 #include <xf86drmMode.h>
@@ -651,20 +658,56 @@ gst_wayland_sink_get_caps (GstBaseSink * bsink, GstCaps * filter)
   return caps;
 }
 
+#define ISALIGNED(a, b) (!(a & (b-1)))
+
 static GstBufferPool *
 gst_wayland_create_pool (GstWaylandSink * self, GstCaps * caps)
 {
   GstBufferPool *pool = NULL;
   GstStructure *structure;
   gsize size = self->video_info.size;
-  GstAllocator *alloc;
+  GstAllocator *alloc = NULL;
 
   pool = gst_wl_video_buffer_pool_new ();
 
+  GstVideoInfo info;
+  gst_video_info_from_caps (&info, caps);
+  GstVideoFormat format = GST_VIDEO_INFO_FORMAT (&info);
+  if (gst_wl_display_check_format_for_dmabuf (self->display, format)) {
+#ifdef HAVE_DMABUFHEAPS_ALLOCATOR
+    alloc = gst_dmabufheaps_allocator_obtain ();
+#endif
+#ifdef HAVE_ION_ALLOCATOR
+    if (!alloc)
+      alloc = gst_ion_allocator_obtain ();
+#endif
+  }
+
   structure = gst_buffer_pool_get_config (pool);
   gst_buffer_pool_config_set_params (structure, caps, size, 2, 0);
+  if (!alloc)
+    alloc = gst_wl_shm_allocator_get ();
+  else {
+    gint w = GST_VIDEO_INFO_WIDTH (&self->video_info);
+    gint h = GST_VIDEO_INFO_HEIGHT (&self->video_info);
+    if (!ISALIGNED (w, 16) || !ISALIGNED (h, 16)) {
+      GstVideoAlignment alignment;
 
-  alloc = gst_wl_shm_allocator_get ();
+      memset (&alignment, 0, sizeof (GstVideoAlignment));
+      alignment.padding_right = GST_ROUND_UP_N (w, 16) - w;
+      alignment.padding_bottom = GST_ROUND_UP_N (h, 16) - h;
+
+      GST_DEBUG
+          ("align buffer pool, w(%d) h(%d), padding_right (%d), padding_bottom (%d)",
+          w, h, alignment.padding_right, alignment.padding_bottom);
+
+      gst_buffer_pool_config_add_option (structure,
+          GST_BUFFER_POOL_OPTION_VIDEO_META);
+      gst_buffer_pool_config_add_option (structure,
+          GST_BUFFER_POOL_OPTION_VIDEO_ALIGNMENT);
+      gst_buffer_pool_config_set_video_alignment (structure, &alignment);
+    }
+  }
   gst_buffer_pool_config_set_allocator (structure, alloc, NULL);
   if (!gst_buffer_pool_set_config (pool, structure)) {
     g_object_unref (pool);
@@ -687,6 +730,8 @@ gst_wayland_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
   /* extract info from caps */
   if (!gst_video_info_from_caps (&self->video_info, caps))
     goto invalid_format;
+
+  self->src_info = self->video_info;
 
   format = GST_VIDEO_INFO_FORMAT (&self->video_info);
   self->video_info_changed = TRUE;
@@ -732,7 +777,7 @@ gst_wayland_sink_propose_allocation (GstBaseSink * bsink, GstQuery * query)
   GstCaps *caps;
   GstBufferPool *pool = NULL;
   gboolean need_pool;
-  GstAllocator *alloc;
+  GstAllocator *alloc = NULL;
   guint64 drm_modifier;
 
   gst_query_parse_allocation (query, &caps, &need_pool);
@@ -743,11 +788,19 @@ gst_wayland_sink_propose_allocation (GstBaseSink * bsink, GstQuery * query)
   if (need_pool)
     pool = gst_wayland_create_pool (self, caps);
 
+  if (pool) {
+    GstStructure *config = gst_buffer_pool_get_config (pool);
+    gst_buffer_pool_config_get_allocator (config, &alloc, NULL);
+    g_object_ref (alloc);
+    gst_structure_free (config);
+  }
+
   gst_query_add_allocation_pool (query, pool, self->video_info.size, 2, 0);
   if (pool)
     g_object_unref (pool);
 
-  alloc = gst_wl_shm_allocator_get ();
+  if (!alloc)
+    alloc = gst_wl_shm_allocator_get ();
   gst_query_add_allocation_param (query, alloc, NULL);
   gst_query_add_allocation_meta (query, GST_VIDEO_META_API_TYPE, NULL);
   gst_query_add_allocation_meta (query, GST_VIDEO_CROP_META_API_TYPE, NULL);
@@ -905,77 +958,102 @@ gst_wayland_sink_show_frame (GstVideoSink * vsink, GstBuffer * buffer)
     if (gst_buffer_n_memory (buffer) == 1 && gst_is_fd_memory (mem))
       wbuf = gst_wl_shm_memory_construct_wl_buffer (mem, self->display,
           &self->video_info);
+  }
 
-    /* If nothing worked, copy into our internal pool */
-    if (!wbuf) {
-      GstVideoFrame src, dst;
-      GstVideoInfo src_info = self->video_info;
+  /* If nothing worked, copy into our internal pool */
+  if (!wbuf) {
+    GstVideoFrame src, dst;
 
-      /* rollback video info changes */
-      self->video_info = old_vinfo;
+    /* rollback video info changes */
+    self->video_info = old_vinfo;
 
-      /* we don't know how to create a wl_buffer directly from the provided
-       * memory, so we have to copy the data to shm memory that we know how
-       * to handle... */
+    GST_LOG_OBJECT (self, "buffer %p cannot have a wl_buffer, "
+        "copying to internal memory", buffer);
 
-      GST_LOG_OBJECT (self,
-          "buffer %" GST_PTR_FORMAT " cannot have a wl_buffer, "
-          "copying to wl_shm memory", buffer);
+    /* self->pool always exists (created in set_caps), but it may not
+     * be active if upstream is not using it */
+    if (!gst_buffer_pool_is_active (self->pool)) {
+      GstStructure *config;
+      GstCaps *caps;
 
-      /* self->pool always exists (created in set_caps), but it may not
-       * be active if upstream is not using it */
-      if (!gst_buffer_pool_is_active (self->pool)) {
-        GstStructure *config;
-        GstCaps *caps;
+      config = gst_buffer_pool_get_config (self->pool);
+      gst_buffer_pool_config_get_params (config, &caps, NULL, NULL, NULL);
 
-        config = gst_buffer_pool_get_config (self->pool);
-        gst_buffer_pool_config_get_params (config, &caps, NULL, NULL, NULL);
+      /* revert back to default strides and offsets */
+      gst_video_info_from_caps (&self->video_info, caps);
+      gst_buffer_pool_config_set_params (config, caps, self->video_info.size,
+          2, 0);
 
-        /* revert back to default strides and offsets */
-        gst_video_info_from_caps (&self->video_info, caps);
-        gst_buffer_pool_config_set_params (config, caps, self->video_info.size,
-            2, 0);
+      /* This is a video pool, it should not fail with basic setings */
+      if (!gst_buffer_pool_set_config (self->pool, config) ||
+          !gst_buffer_pool_set_active (self->pool, TRUE))
+        goto activate_failed;
+    }
 
-        /* This is a video pool, it should not fail with basic settings */
-        if (!gst_buffer_pool_set_config (self->pool, config) ||
-            !gst_buffer_pool_set_active (self->pool, TRUE))
-          goto activate_failed;
+    ret = gst_buffer_pool_acquire_buffer (self->pool, &to_render, NULL);
+    if (ret != GST_FLOW_OK)
+      goto no_buffer;
+
+    wlbuffer = gst_buffer_get_wl_buffer (self->display, to_render);
+
+    /* attach a wl_buffer if there isn't one yet */
+    if (G_UNLIKELY (!wlbuffer)) {
+      mem = gst_buffer_peek_memory (to_render, 0);
+      if (gst_wl_display_check_format_for_dmabuf (self->display, format)
+          && gst_is_dmabuf_memory (mem)) {
+        GstVideoInfo info = self->video_info;
+
+        if (self->pool && gst_buffer_pool_is_active (self->pool)) {
+          GstStructure *config;
+          GstVideoAlignment video_align;
+          memset (&video_align, 0, sizeof (GstVideoAlignment));
+          config = gst_buffer_pool_get_config (self->pool);
+
+          if (gst_buffer_pool_config_has_option (config,
+                  GST_BUFFER_POOL_OPTION_VIDEO_ALIGNMENT)) {
+            gst_buffer_pool_config_get_video_alignment (config, &video_align);
+
+            GST_DEBUG_OBJECT (self, "pool has alignment (%d, %d) , (%d, %d)",
+                video_align.padding_left, video_align.padding_top,
+                video_align.padding_right, video_align.padding_bottom);
+
+            gst_video_info_align (&info, &video_align);
+          }
+          gst_structure_free (config);
+        }
+
+        wbuf =
+            gst_wl_linux_dmabuf_construct_wl_buffer (to_render, self->display,
+            &info);
       }
 
-      ret = gst_buffer_pool_acquire_buffer (self->pool, &to_render, NULL);
-      if (ret != GST_FLOW_OK)
-        goto no_buffer;
-
-      wlbuffer = gst_buffer_get_wl_buffer (self->display, to_render);
-
-      /* attach a wl_buffer if there isn't one yet */
-      if (G_UNLIKELY (!wlbuffer)) {
-        mem = gst_buffer_peek_memory (to_render, 0);
+      if (!wbuf) {
+        GST_DEBUG_OBJECT (self, "no dmabuf available, try shm");
         wbuf = gst_wl_shm_memory_construct_wl_buffer (mem, self->display,
             &self->video_info);
-
-        if (G_UNLIKELY (!wbuf))
-          goto no_wl_buffer_shm;
-
-        wlbuffer = gst_buffer_add_wl_buffer (to_render, wbuf, self->display);
       }
 
-      if (!gst_video_frame_map (&dst, &self->video_info, to_render,
-              GST_MAP_WRITE))
-        goto dst_map_failed;
+      if (G_UNLIKELY (!wbuf))
+        goto no_wl_buffer_shm;
 
-      if (!gst_video_frame_map (&src, &src_info, buffer, GST_MAP_READ)) {
-        gst_video_frame_unmap (&dst);
-        goto src_map_failed;
-      }
-
-      gst_video_frame_copy (&dst, &src);
-
-      gst_video_frame_unmap (&src);
-      gst_video_frame_unmap (&dst);
-
-      goto render;
+      wlbuffer = gst_buffer_add_wl_buffer (to_render, wbuf, self->display);
     }
+
+    if (!gst_video_frame_map (&dst, &self->video_info, to_render,
+            GST_MAP_WRITE))
+      goto dst_map_failed;
+
+    if (!gst_video_frame_map (&src, &self->src_info, buffer, GST_MAP_READ)) {
+      gst_video_frame_unmap (&dst);
+      goto src_map_failed;
+    }
+
+    gst_video_frame_copy (&dst, &src);
+
+    gst_video_frame_unmap (&src);
+    gst_video_frame_unmap (&dst);
+
+    goto render;
   }
 
   if (!wbuf)
