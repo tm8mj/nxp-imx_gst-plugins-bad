@@ -531,6 +531,13 @@ if test "x$HAVE_WINSOCK2_H" = "xyes"; then
   AC_SUBST(WINSOCK2_LIBS)
 fi
 
+dnl ion allocator
+old_CFLAGS=$CFLAGS
+PKG_CHECK_MODULES(GST, gstreamer-$GST_MAJORMINOR >= 1.14, CFLAGS="$CFLAGS `$PKG_CONFIG --cflags gstreamer-allocators-1.0`")
+AC_CHECK_HEADERS([linux/ion.h gst/allocators/gstionmemory.h], HAVE_ION="yes", HAVE_ION="no")
+AM_CONDITIONAL(USE_ION, test "x$HAVE_ION" = "xyes")
+CFLAGS=$old_CFLAGS
+
 dnl Vulkan
 PKG_CHECK_MODULES(XCB, xcb >= 1.10, GST_VULKAN_HAVE_WINDOW_XCB=1, GST_VULKAN_HAVE_WINDOW_XCB=0)
 AM_CONDITIONAL(USE_XCB, test "x$GST_VULKAN_HAVE_WINDOW_XCB" = "x1")
