@@ -39,6 +39,10 @@ libgstwaylandsink_la_LIBADD = \
 	$(WAYLAND_LIBS)
 libgstwaylandsink_la_LDFLAGS = $(GST_PLUGIN_LDFLAGS)
 
+if USE_ION
+libgstwaylandsink_la_CFLAGS += -DHAVE_ION_ALLOCATOR
+endif
+
 noinst_HEADERS = \
 	gstwaylandsink.h \
 	wlshmallocator.h \
