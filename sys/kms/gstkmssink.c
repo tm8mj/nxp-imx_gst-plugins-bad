@@ -61,6 +61,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <linux/version.h>
 
 #include "gstkmssink.h"
 #include "gstkmsutils.h"
@@ -428,14 +429,25 @@ get_drm_caps (GstKMSSink * self)
   return TRUE;
 }
 
+static gint
+get_commit_fd (GstKMSSink * self)
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
+  return self->ctrl_fd;
+#else
+  return self->fd;
+#endif
+}
+
 static guint
 check_upscale (GstKMSSink * self, guint32 fb_id) {
   guint32 src_w = self->hdisplay / 10;
   guint32 src_h = self->vdisplay / 10;
   guint ratio;
+  gint fd = get_commit_fd(self);
 
   for (ratio = 10; ratio > 0; ratio--) {
-    if (!drmModeSetPlane (self->ctrl_fd, self->plane_id, self->crtc_id, fb_id, 0,
+    if (!drmModeSetPlane (fd, self->plane_id, self->crtc_id, fb_id, 0,
           0, 0, src_w * ratio, src_h * ratio,
           0, 0, src_w << 16, src_h << 16))
       break;
@@ -449,9 +461,10 @@ check_downscale (GstKMSSink * self, guint32 fb_id) {
   guint32 src_w = self->hdisplay / 10;
   guint32 src_h = self->vdisplay / 10;
   guint ratio;
+  gint fd = get_commit_fd(self);
 
   for (ratio = 10; ratio > 0; ratio--) {
-    if (!drmModeSetPlane (self->ctrl_fd, self->plane_id, self->crtc_id, fb_id, 0,
+    if (!drmModeSetPlane (fd, self->plane_id, self->crtc_id, fb_id, 0,
           0, 0, src_w, src_h,
           0, 0, (src_w * ratio) << 16, (src_h * ratio) << 16))
       break;
@@ -859,7 +872,6 @@ gst_kms_sink_start (GstBaseSink * bsink)
   drmModePlane *plane;
   gboolean universal_planes;
   gboolean ret;
-  gint minor;
 
   self = GST_KMS_SINK (bsink);
   universal_planes = FALSE;
@@ -875,10 +887,21 @@ gst_kms_sink_start (GstBaseSink * bsink)
   else
     self->fd = kms_open (&self->devname);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
+  gint minor;
   minor = get_drm_minor_base (DRM_NODE_CONTROL);
   self->ctrl_fd = drmOpenControl(minor);
+  if (self->ctrl_fd < 0) {
+    if (self->fd >= 0)
+      drmClose (self->fd);
+    GST_ELEMENT_ERROR (self, RESOURCE, OPEN_READ_WRITE,
+        ("Could not open DRM ctrl node %s", GST_STR_NULL (self->devname)),
+        ("reason: %s (%d)", strerror (errno), errno));
+    return FALSE;
+  }
+#endif
 
-  if (self->fd < 0 || self->ctrl_fd < 0)
+  if (self->fd < 0)
     goto open_failed;
 
   log_drm_version (self);
@@ -1104,10 +1127,12 @@ gst_kms_sink_stop (GstBaseSink * bsink)
     self->fd = -1;
   }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
   if (self->ctrl_fd >= 0) {
     drmClose (self->ctrl_fd);
     self->ctrl_fd = -1;
   }
+#endif
 
   GST_OBJECT_LOCK (bsink);
   self->hdisplay = 0;
@@ -1672,6 +1697,7 @@ gst_kms_sink_set_kmsproperty (GstKMSSink * self, guint alpha, guint64 dtrc_table
   drmModeObjectPropertiesPtr props = NULL;
   drmModePropertyPtr prop = NULL;
   guint i;
+  gint fd = get_commit_fd (self);
 
   props = drmModeObjectGetProperties (self->fd, self->plane_id, DRM_MODE_OBJECT_PLANE);
   for (i = 0; i < props->count_props; ++i) {
@@ -1679,7 +1705,7 @@ gst_kms_sink_set_kmsproperty (GstKMSSink * self, guint alpha, guint64 dtrc_table
     if (!strcmp(prop->name, "dtrc_table_ofs") && dtrc_table_ofs) {
       GST_DEBUG ("set DTRC table offset %lld to primary plane %d property %d",
           dtrc_table_ofs, self->plane_id, prop->prop_id);
-      drmModeObjectSetProperty (self->ctrl_fd, self->plane_id, DRM_MODE_OBJECT_PLANE, prop->prop_id, dtrc_table_ofs);
+      drmModeObjectSetProperty (fd, self->plane_id, DRM_MODE_OBJECT_PLANE, prop->prop_id, dtrc_table_ofs);
     }
     drmModeFreeProperty (prop);
     prop = NULL;
@@ -1705,7 +1731,7 @@ gst_kms_sink_set_kmsproperty (GstKMSSink * self, guint alpha, guint64 dtrc_table
     if (!strcmp(prop->name, "alpha")) {
       GST_DEBUG ("set global alpha %d to primary plane %d property %d",
           alpha, plane->plane_id, prop->prop_id);
-      drmModeObjectSetProperty (self->ctrl_fd, plane->plane_id, DRM_MODE_OBJECT_PLANE, prop->prop_id, alpha);
+      drmModeObjectSetProperty (fd, plane->plane_id, DRM_MODE_OBJECT_PLANE, prop->prop_id, alpha);
       self->primary_plane_id = plane->plane_id;
     }
     drmModeFreeProperty (prop);
@@ -1729,12 +1755,14 @@ gst_kms_sink_change_state (GstElement * element, GstStateChange transition)
 {
   GstKMSSink *self;
   GstStateChangeReturn ret = GST_STATE_CHANGE_SUCCESS;
+  gint fd;
 
   GST_DEBUG ("changing state: %s => %s",
       gst_element_state_get_name (GST_STATE_TRANSITION_CURRENT (transition)),
       gst_element_state_get_name (GST_STATE_TRANSITION_NEXT (transition)));
 
   self = GST_KMS_SINK (element);
+  fd = get_commit_fd (self);
 
   switch (transition) {
     case GST_STATE_CHANGE_NULL_TO_READY:
@@ -1777,7 +1805,7 @@ gst_kms_sink_change_state (GstElement * element, GstStateChange transition)
         gint err = 0;
         self->hdr10meta.eotf = 0;
         drmModeCreatePropertyBlob (self->fd, &self->hdr10meta, 1, &blob_id);
-        err = drmModeObjectSetProperty (self->ctrl_fd, self->conn_id, DRM_MODE_OBJECT_CONNECTOR, self->hdr_prop_id, blob_id);
+        err = drmModeObjectSetProperty (fd, self->conn_id, DRM_MODE_OBJECT_CONNECTOR, self->hdr_prop_id, blob_id);
         drmModeDestroyPropertyBlob (self->fd, blob_id);
         if (err)
           GST_ERROR_OBJECT (self, "reset blob property fail %d", err);
@@ -1900,6 +1928,7 @@ gst_kms_sink_config_hdr10 (GstKMSSink *self, GstBuffer * buf)
   drmModeObjectPropertiesPtr props = NULL;
   drmModePropertyPtr prop = NULL;
   GstVideoHdr10Meta *meta = NULL;
+  gint fd = get_commit_fd (self);
 
   if (self->conn_id < 0) {
     GST_ERROR_OBJECT (self, "no connector");
@@ -1963,7 +1992,7 @@ gst_kms_sink_config_hdr10 (GstKMSSink *self, GstBuffer * buf)
 
     drmModeCreatePropertyBlob (self->fd, &self->hdr10meta, sizeof (self->hdr10meta), &blob_id);
     GST_INFO_OBJECT (self, "create blob id %d", blob_id);
-    err = drmModeObjectSetProperty (self->ctrl_fd, self->conn_id, DRM_MODE_OBJECT_CONNECTOR, self->hdr_prop_id, blob_id);
+    err = drmModeObjectSetProperty (fd, self->conn_id, DRM_MODE_OBJECT_CONNECTOR, self->hdr_prop_id, blob_id);
     drmModeDestroyPropertyBlob (self->fd, blob_id);
     if (err) {
       GST_ERROR_OBJECT (self, "set blob property fail %d", err);
@@ -2005,8 +2034,10 @@ gst_kms_sink_show_frame (GstVideoSink * vsink, GstBuffer * buf)
   GstFlowReturn res;
   gboolean can_scale = TRUE;
   guint32 fmt, alignment;
+  gint fd;
   
   self = GST_KMS_SINK (vsink);
+  fd = get_commit_fd (self);
 
   res = GST_FLOW_ERROR;
 
@@ -2147,7 +2178,7 @@ retry_set_plane:
       "drmModeSetPlane at (%i,%i) %ix%i sourcing at (%i,%i) %ix%i",
       result.x, result.y, result.w, result.h, src.x, src.y, src.w, src.h);
 
-  ret = drmModeSetPlane (self->ctrl_fd, self->plane_id, self->crtc_id, fb_id, 0,
+  ret = drmModeSetPlane (fd, self->plane_id, self->crtc_id, fb_id, 0,
       result.x, result.y, result.w, result.h,
       /* source/cropping coordinates are given in Q16 */
       src.x << 16, src.y << 16, src.w << 16, src.h << 16);
@@ -2422,6 +2453,7 @@ static void
 gst_kms_sink_init (GstKMSSink * sink)
 {
   sink->fd = -1;
+  sink->ctrl_fd = -1;
   sink->conn_id = -1;
   sink->plane_id = -1;
   sink->primary_plane_id = -1;
