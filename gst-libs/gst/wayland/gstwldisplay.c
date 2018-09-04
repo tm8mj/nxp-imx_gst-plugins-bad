@@ -55,6 +55,7 @@ typedef struct _GstWlDisplayPrivate
   struct zwp_alpha_compositing_v1 *alpha_compositing;
   GArray *shm_formats;
   GArray *dmabuf_formats;
+  GHashTable *dmabuf_modifiers;
 
   /* real display resolution */
   gint width, height;
@@ -93,6 +94,8 @@ gst_wl_display_init (GstWlDisplay * self)
   GstWlDisplayPrivate *priv = gst_wl_display_get_instance_private (self);
 
   priv->shm_formats = g_array_new (FALSE, FALSE, sizeof (uint32_t));
+  priv->dmabuf_modifiers = g_hash_table_new_full (g_direct_hash, g_direct_equal,
+                            NULL, (GDestroyNotify) g_array_unref);
   priv->dmabuf_formats = g_array_new (FALSE, FALSE, sizeof (uint32_t));
   priv->wl_fd_poll = gst_poll_new (TRUE);
   priv->buffers = g_hash_table_new (g_direct_hash, g_direct_equal);
@@ -134,8 +137,10 @@ gst_wl_display_finalize (GObject * gobject)
       (GHFunc) gst_wl_buffer_force_release_and_unref, NULL);
   g_hash_table_remove_all (priv->buffers);
 
-  g_array_unref (priv->shm_formats);
+  g_hash_table_remove_all (priv->dmabuf_modifiers);
   g_array_unref (priv->dmabuf_formats);
+
+  g_array_unref (priv->shm_formats);
   gst_poll_free (priv->wl_fd_poll);
   g_hash_table_unref (priv->buffers);
   g_mutex_clear (&priv->buffers_mutex);
@@ -198,15 +203,43 @@ static void
 dmabuf_format (void *data, struct zwp_linux_dmabuf_v1 *zwp_linux_dmabuf,
     uint32_t format)
 {
+  /* this event has been deprecated */
+}
+
+static void dmabuf_modifier(void *data,
+                        struct zwp_linux_dmabuf_v1 *zwp_linux_dmabuf_v1,
+                        uint32_t format,
+                        uint32_t modifier_hi,
+                        uint32_t modifier_lo)
+{
   GstWlDisplay *self = data;
   GstWlDisplayPrivate *priv = gst_wl_display_get_instance_private (self);
+  uint64_t modifier = ((uint64_t)modifier_hi << 32) | modifier_lo;
 
-  if (gst_wl_dmabuf_format_to_video_format (format) != GST_VIDEO_FORMAT_UNKNOWN)
-    g_array_append_val (priv->dmabuf_formats, format);
+  if (gst_wl_dmabuf_format_to_video_format (format) != GST_VIDEO_FORMAT_UNKNOWN) {
+    if (!g_hash_table_contains (priv->dmabuf_modifiers, GUINT_TO_POINTER (format))){
+      GArray *modifiers = g_array_new (FALSE, FALSE, sizeof (uint64_t));
+      g_array_append_val (modifiers, modifier);
+      g_hash_table_insert (priv->dmabuf_modifiers, GUINT_TO_POINTER (format), modifiers);
+
+      g_array_append_val (priv->dmabuf_formats, format);
+    } else {
+      int i;
+      GArray *modifiers = g_hash_table_lookup (priv->dmabuf_modifiers, GUINT_TO_POINTER (format));
+      for (i = 0; i < modifiers->len; i++) {
+        uint64_t mod = g_array_index (modifiers, uint64_t, i);
+        if (mod == modifier)
+         break;
+      }
+      if (i == modifiers->len)
+        g_array_append_val (modifiers, modifier);
+    }
+  }
 }
 
 static const struct zwp_linux_dmabuf_v1_listener dmabuf_listener = {
   dmabuf_format,
+  dmabuf_modifier
 };
 
 gboolean
@@ -337,7 +370,7 @@ registry_handle_global (void *data, struct wl_registry *registry,
         wl_registry_bind (registry, id, &wp_viewporter_interface, 1);
   } else if (g_strcmp0 (interface, "zwp_linux_dmabuf_v1") == 0) {
     priv->dmabuf =
-        wl_registry_bind (registry, id, &zwp_linux_dmabuf_v1_interface, 1);
+        wl_registry_bind (registry, id, &zwp_linux_dmabuf_v1_interface, version);
     zwp_linux_dmabuf_v1_add_listener (priv->dmabuf, &dmabuf_listener, self);
   } else if (g_strcmp0 (interface, "zwp_alpha_compositing_v1") == 0) {
     priv->alpha_compositing =
