@@ -62,6 +62,7 @@ struct _GstWlDisplay
   struct zwp_hdr10_metadata_v1 *hdr10_metadata;
   GArray *shm_formats;
   GArray *dmabuf_formats;
+  GHashTable *dmabuf_modifiers;
 
   /* real display resolution */
   gint width, height;
