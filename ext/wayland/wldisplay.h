@@ -65,6 +65,7 @@ struct _GstWlDisplay
   struct zwp_alpha_compositing_v1 *alpha_compositing;
   GArray *shm_formats;
   GArray *dmabuf_formats;
+  GHashTable *dmabuf_modifiers;
 
   /* real display resolution */
   gint width, height;
