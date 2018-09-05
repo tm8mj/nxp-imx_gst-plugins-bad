@@ -76,7 +76,8 @@ enum
   PROP_WINDOW_HEIGHT,
   PROP_DISPLAY,
   PROP_FULLSCREEN,
-  PROP_ALPHA
+  PROP_ALPHA,
+  PROP_ENABLE_TILE
 };
 
 GST_DEBUG_CATEGORY (gstwayland_debug);
@@ -238,6 +239,11 @@ gst_wayland_sink_class_init (GstWaylandSinkClass * klass)
           "surface alpha value, apply custom alpha value to wayland surface",
           0.0f, 1.0f, 0.0f, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
+  g_object_class_install_property (gobject_class, PROP_ENABLE_TILE,
+      g_param_spec_boolean ("enable-tile", "enable hantro tile",
+          "When enabled, the sink propose VSI tile modifier to VPU", FALSE,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_CONSTRUCT));
+
   gst_type_mark_as_plugin_api (GST_TYPE_WAYLAND_VIDEO, 0);
 }
 
@@ -252,6 +258,7 @@ gst_wayland_sink_init (GstWaylandSink * sink)
   g_cond_init (&sink->redraw_wait);
   sink->frame_showed = 0;
   sink->run_time = 0;
+  sink->enable_tile = FALSE;
 }
 
 static void
@@ -292,6 +299,9 @@ gst_wayland_sink_get_property (GObject * object,
     case PROP_ALPHA:
       g_value_set_float (value, sink->alpha);
       break;
+    case PROP_ENABLE_TILE:
+      g_value_set_boolean (value, sink->enable_tile);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -323,6 +333,9 @@ gst_wayland_sink_set_property (GObject * object,
       break;
     case PROP_ALPHA:
       sink->alpha = g_value_get_float (value);
+      break;
+    case PROP_ENABLE_TILE:
+      sink->enable_tile = g_value_get_boolean (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -717,6 +730,15 @@ gst_wayland_sink_propose_allocation (GstBaseSink * bsink, GstQuery * query)
 
   drm_modifier = DRM_FORMAT_MOD_AMPHION_TILED;
   gst_query_add_allocation_dmabuf_meta (query, drm_modifier);
+
+  if (sink->enable_tile && HAS_DCSS ()) {
+    drm_modifier = DRM_FORMAT_MOD_VSI_G1_TILED;
+    gst_query_add_allocation_dmabuf_meta (query, drm_modifier);
+    drm_modifier = DRM_FORMAT_MOD_VSI_G2_TILED;
+    gst_query_add_allocation_dmabuf_meta (query, drm_modifier);
+    drm_modifier = DRM_FORMAT_MOD_VSI_G2_TILED_COMPRESSED;
+    gst_query_add_allocation_dmabuf_meta (query, drm_modifier);
+  }
 
   if (need_pool)
     pool = gst_wayland_create_pool (sink, caps);
