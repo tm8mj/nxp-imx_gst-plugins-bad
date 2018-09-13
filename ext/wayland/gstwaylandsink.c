@@ -624,7 +624,9 @@ gst_wayland_create_pool (GstWaylandSink * sink, GstCaps * caps)
   pool = g_object_new (gst_wayland_pool_get_type (), NULL);
 
 #ifdef HAVE_ION_ALLOCATOR
-  GstVideoFormat format = GST_VIDEO_INFO_FORMAT (&sink->video_info);
+  GstVideoInfo info;
+  gst_video_info_from_caps (&info, caps);
+  GstVideoFormat format = GST_VIDEO_INFO_FORMAT (&info);
   if (gst_wl_display_check_format_for_dmabuf (sink->display, format))
     alloc = gst_ion_allocator_obtain ();
 #endif
