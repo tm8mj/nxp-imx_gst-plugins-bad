@@ -812,16 +812,19 @@ gst_wayland_sink_config_hdr10 (GstWaylandSink *sink, GstBuffer * buf)
     GST_INFO_OBJECT (sink, "chromaSampleLocTypeTopField %d", meta->hdr10meta.chromaSampleLocTypeTopField);
     GST_INFO_OBJECT (sink, "chromaSampleLocTypeBottomField %d", meta->hdr10meta.chromaSampleLocTypeBottomField);
 
-    eotf = SMPTE_ST2084;
-    type = 0;
-    display_primaries_red = (guint)(meta->hdr10meta.redPrimary[0] << 16 | meta->hdr10meta.redPrimary[1]);
-    display_primaries_green = (guint)(meta->hdr10meta.greenPrimary[0] << 16 | meta->hdr10meta.greenPrimary[1]);
-    display_primaries_blue = (guint)(meta->hdr10meta.bluePrimary[0] << 16 | meta->hdr10meta.bluePrimary[1]);
-    white_point = (guint)(meta->hdr10meta.whitePoint[0] << 16 | meta->hdr10meta.whitePoint[1]);
-    mastering_display_luminance = (guint)(((meta->hdr10meta.maxMasteringLuminance / 10000) & 0xffff) << 16
-                                          | (meta->hdr10meta.minMasteringLuminance & 0xffff));
-    max_cll = meta->hdr10meta.maxContentLightLevel;
-    max_fall = meta->hdr10meta.maxFrameAverageLightLevel;
+    if ((meta->hdr10meta.transferCharacteristics == 16 || meta->hdr10meta.transferCharacteristics == 18)
+        &&  GST_VIDEO_INFO_FORMAT (&sink->video_info) == GST_VIDEO_FORMAT_NV12_10LE) {
+      eotf = SMPTE_ST2084;
+      type = 0;
+      display_primaries_red = (guint)(meta->hdr10meta.redPrimary[0] << 16 | meta->hdr10meta.redPrimary[1]);
+      display_primaries_green = (guint)(meta->hdr10meta.greenPrimary[0] << 16 | meta->hdr10meta.greenPrimary[1]);
+      display_primaries_blue = (guint)(meta->hdr10meta.bluePrimary[0] << 16 | meta->hdr10meta.bluePrimary[1]);
+      white_point = (guint)(meta->hdr10meta.whitePoint[0] << 16 | meta->hdr10meta.whitePoint[1]);
+      mastering_display_luminance = (guint)(((meta->hdr10meta.maxMasteringLuminance / 10000) & 0xffff) << 16
+                                            | (meta->hdr10meta.minMasteringLuminance & 0xffff));
+      max_cll = meta->hdr10meta.maxContentLightLevel;
+      max_fall = meta->hdr10meta.maxFrameAverageLightLevel;
+    }
   }
 
   if (display->hdr10_metadata) {
