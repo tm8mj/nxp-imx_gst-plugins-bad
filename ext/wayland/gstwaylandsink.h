@@ -63,6 +63,7 @@ struct _GstWaylandSink
 
   gboolean video_info_changed;
   GstVideoInfo video_info;
+  GstVideoInfo src_info;
 
   /* preferred window resolution */
   gint preferred_width, preferred_height;
