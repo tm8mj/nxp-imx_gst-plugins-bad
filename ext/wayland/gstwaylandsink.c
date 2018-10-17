@@ -681,6 +681,8 @@ gst_wayland_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
   if (!gst_video_info_from_caps (&sink->video_info, caps))
     goto invalid_format;
 
+  sink->src_info = sink->video_info;
+
   format = GST_VIDEO_INFO_FORMAT (&sink->video_info);
   sink->video_info_changed = TRUE;
 
@@ -911,7 +913,6 @@ gst_wayland_sink_show_frame (GstVideoSink * vsink, GstBuffer * buffer)
   /* If nothing worked, copy into our internal pool */
   if (!wbuf) {
     GstVideoFrame src, dst;
-    GstVideoInfo src_info = sink->video_info;
 
     /* rollback video info changes */
     sink->video_info = old_vinfo;
@@ -992,7 +993,7 @@ gst_wayland_sink_show_frame (GstVideoSink * vsink, GstBuffer * buffer)
             GST_MAP_WRITE))
       goto dst_map_failed;
 
-    if (!gst_video_frame_map (&src, &src_info, buffer, GST_MAP_READ)) {
+    if (!gst_video_frame_map (&src, &sink->src_info, buffer, GST_MAP_READ)) {
       gst_video_frame_unmap (&dst);
       goto src_map_failed;
     }
