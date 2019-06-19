@@ -2726,6 +2726,9 @@ gst_h264_parse_pre_push_frame (GstBaseParse * parse, GstBaseParseFrame * frame)
           gst_util_uint64_scale_int (tim->n_frames, 1,
           2 - tim->nuit_field_based_flag);
 
+      if (!GST_IS_BUFFER (buffer))
+        buffer = frame->out_buffer;
+
       gst_buffer_add_video_time_code_meta_full (buffer,
           h264parse->parsed_fps_n,
           h264parse->parsed_fps_d,
