@@ -24,6 +24,8 @@
 #include <config.h>
 #endif
 
+#include <unistd.h>
+
 #include "wlwindow.h"
 #include "wlshmallocator.h"
 #include "wlbuffer.h"
@@ -137,6 +139,76 @@ static const struct wl_shell_surface_listener wl_shell_surface_listener = {
   handle_popup_done
 };
 
+static gboolean
+gst_wl_poll_wait_fence (int32_t fence)
+{
+  GstPollFD pollfd = GST_POLL_FD_INIT;
+  GstPoll *fence_poll = gst_poll_new (TRUE);
+
+  pollfd.fd = fence;
+  gst_poll_add_fd (fence_poll, &pollfd);
+  gst_poll_fd_ctl_read (fence_poll, &pollfd, TRUE);
+  gst_poll_fd_ctl_write (fence_poll, &pollfd, TRUE);
+
+  if (gst_poll_wait (fence_poll, GST_CLOCK_TIME_NONE) < 0) {
+    GST_ERROR ("wait on fence failed, errno %d", errno);
+    gst_poll_free (fence_poll);
+    return FALSE;
+  }
+
+  GST_DEBUG ("wait on fence %d done", fence);
+  gst_poll_free (fence_poll);
+
+  return TRUE;
+}
+
+static void
+buffer_fenced_release (void *data,
+    struct zwp_linux_buffer_release_v1 *release, int32_t fence)
+{
+  GstWlBuffer *buffer = data;
+
+  g_assert (release == buffer->buffer_release);
+
+  buffer->used_by_compositor = FALSE;
+  zwp_linux_buffer_release_v1_destroy (buffer->buffer_release);
+  buffer->buffer_release = NULL;
+  GST_LOG ("wl_buffer::fenced_release %d (GstBuffer: %p)",
+      fence, buffer->current_gstbuffer);
+
+  if (fence > 0) {
+    gst_wl_poll_wait_fence (fence);
+    close (fence);
+    if (buffer)
+      gst_buffer_unref (buffer->current_gstbuffer);
+  }
+
+}
+
+static void
+buffer_immediate_release (void *data,
+    struct zwp_linux_buffer_release_v1 *release)
+{
+  GstWlBuffer *buffer = data;
+
+  g_assert (release == buffer->buffer_release);
+
+  buffer->used_by_compositor = FALSE;
+  zwp_linux_buffer_release_v1_destroy (buffer->buffer_release);
+  buffer->buffer_release = NULL;
+  GST_LOG ("wl_buffer::immediate_release (GstBuffer: %p)",
+      buffer->current_gstbuffer);
+
+  /* unref should be last, because it may end up destroying the GstWlBuffer */
+  gst_buffer_unref (buffer->current_gstbuffer);
+}
+
+static const struct zwp_linux_buffer_release_v1_listener buffer_release_listener
+    = {
+  buffer_fenced_release,
+  buffer_immediate_release,
+};
+
 static void
 gst_wl_window_class_init (GstWlWindowClass * klass)
 {
@@ -177,6 +249,9 @@ gst_wl_window_finalize (GObject * gobject)
 
   if (self->video_viewport)
     wp_viewport_destroy (self->video_viewport);
+
+  if (self->surface_sync)
+    zwp_linux_surface_synchronization_v1_destroy (self->surface_sync);
 
   wl_proxy_wrapper_destroy (self->video_surface_wrapper);
 
@@ -240,6 +315,11 @@ gst_wl_window_new_internal (GstWlDisplay * display, GMutex * render_lock)
     window->blend_func =
         zwp_alpha_compositing_v1_get_blending (display->alpha_compositing,
         window->area_surface);
+
+  if (display->explicit_sync)
+    window->surface_sync =
+        zwp_linux_explicit_synchronization_v1_get_synchronization
+        (display->explicit_sync, window->video_surface_wrapper);
 
   /* do not accept input */
   region = wl_compositor_create_region (display->compositor);
@@ -508,6 +588,15 @@ gst_wl_window_render (GstWlWindow * window, GstWlBuffer * buffer,
     wl_subsurface_set_sync (window->video_subsurface);
     gst_wl_window_resize_video_surface (window, FALSE);
     gst_wl_window_set_opaque (window, info);
+  }
+
+  if (buffer && !buffer->used_by_compositor && window->surface_sync) {
+    GST_DEBUG ("use explicit sync create buffer release (GstBuffer: %p)",
+        buffer->current_gstbuffer);
+    buffer->buffer_release =
+        zwp_linux_surface_synchronization_v1_get_release (window->surface_sync);
+    zwp_linux_buffer_release_v1_add_listener (buffer->buffer_release,
+        &buffer_release_listener, buffer);
   }
 
   if (G_LIKELY (buffer)) {

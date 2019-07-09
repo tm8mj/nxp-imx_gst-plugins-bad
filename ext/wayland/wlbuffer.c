@@ -173,7 +173,9 @@ gst_buffer_add_wl_buffer (GstBuffer * gstbuffer, struct wl_buffer *wlbuffer,
 
   gst_wl_display_register_buffer (self->display, self->gstmem, self);
 
-  wl_buffer_add_listener (self->wlbuffer, &buffer_listener, self);
+  if (!self->display->explicit_sync) {
+    wl_buffer_add_listener (self->wlbuffer, &buffer_listener, self);
+  }
 
   gst_mini_object_weak_ref (GST_MINI_OBJECT (self->gstmem),
       (GstMiniObjectNotify) gstmemory_disposed, self);

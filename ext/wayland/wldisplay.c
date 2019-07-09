@@ -47,7 +47,7 @@ gst_wl_display_init (GstWlDisplay * self)
 {
   self->shm_formats = g_array_new (FALSE, FALSE, sizeof (uint32_t));
   self->dmabuf_modifiers = g_hash_table_new_full (g_direct_hash, g_direct_equal,
-                            NULL, (GDestroyNotify) g_array_unref);
+      NULL, (GDestroyNotify) g_array_unref);
   self->dmabuf_formats = g_array_new (FALSE, FALSE, sizeof (uint32_t));
   self->wl_fd_poll = gst_poll_new (TRUE);
   self->buffers = g_hash_table_new (g_direct_hash, g_direct_equal);
@@ -119,6 +119,9 @@ gst_wl_display_finalize (GObject * gobject)
   if (self->subcompositor)
     wl_subcompositor_destroy (self->subcompositor);
 
+  if (self->explicit_sync)
+    zwp_linux_explicit_synchronization_v1_destroy (self->explicit_sync);
+
   if (self->registry)
     wl_registry_destroy (self->registry);
 
@@ -155,29 +158,31 @@ dmabuf_format (void *data, struct zwp_linux_dmabuf_v1 *zwp_linux_dmabuf,
   /* this event has been deprecated */
 }
 
-static void dmabuf_modifier(void *data,
-			 struct zwp_linux_dmabuf_v1 *zwp_linux_dmabuf_v1,
-			 uint32_t format,
-			 uint32_t modifier_hi,
-			 uint32_t modifier_lo)
+static void
+dmabuf_modifier (void *data,
+    struct zwp_linux_dmabuf_v1 *zwp_linux_dmabuf_v1,
+    uint32_t format, uint32_t modifier_hi, uint32_t modifier_lo)
 {
   GstWlDisplay *self = data;
-  uint64_t modifier = ((uint64_t)modifier_hi << 32) | modifier_lo;
+  uint64_t modifier = ((uint64_t) modifier_hi << 32) | modifier_lo;
 
   if (gst_wl_dmabuf_format_to_video_format (format) != GST_VIDEO_FORMAT_UNKNOWN) {
-    if (!g_hash_table_contains (self->dmabuf_modifiers, GUINT_TO_POINTER (format))){
+    if (!g_hash_table_contains (self->dmabuf_modifiers,
+            GUINT_TO_POINTER (format))) {
       GArray *modifiers = g_array_new (FALSE, FALSE, sizeof (uint64_t));
       g_array_append_val (modifiers, modifier);
-      g_hash_table_insert (self->dmabuf_modifiers, GUINT_TO_POINTER (format), modifiers);
+      g_hash_table_insert (self->dmabuf_modifiers, GUINT_TO_POINTER (format),
+          modifiers);
 
       g_array_append_val (self->dmabuf_formats, format);
     } else {
       int i;
-      GArray *modifiers = g_hash_table_lookup (self->dmabuf_modifiers, GUINT_TO_POINTER (format));
+      GArray *modifiers = g_hash_table_lookup (self->dmabuf_modifiers,
+          GUINT_TO_POINTER (format));
       for (i = 0; i < modifiers->len; i++) {
         uint64_t mod = g_array_index (modifiers, uint64_t, i);
         if (mod == modifier)
-         break;
+          break;
       }
       if (i == modifiers->len)
         g_array_append_val (modifiers, modifier);
@@ -315,12 +320,18 @@ registry_handle_global (void *data, struct wl_registry *registry,
   } else if (g_strcmp0 (interface, "wl_shm") == 0) {
     self->shm = wl_registry_bind (registry, id, &wl_shm_interface, 1);
     wl_shm_add_listener (self->shm, &shm_listener, self);
+  } else if (g_strcmp0 (interface,
+          "zwp_linux_explicit_synchronization_v1") == 0) {
+    self->explicit_sync =
+        wl_registry_bind (registry, id,
+        &zwp_linux_explicit_synchronization_v1_interface, 1);
   } else if (g_strcmp0 (interface, "wp_viewporter") == 0) {
     self->viewporter =
         wl_registry_bind (registry, id, &wp_viewporter_interface, 1);
   } else if (g_strcmp0 (interface, "zwp_linux_dmabuf_v1") == 0) {
     self->dmabuf =
-        wl_registry_bind (registry, id, &zwp_linux_dmabuf_v1_interface, version);
+        wl_registry_bind (registry, id, &zwp_linux_dmabuf_v1_interface,
+        version);
     zwp_linux_dmabuf_v1_add_listener (self->dmabuf, &dmabuf_listener, self);
   } else if (g_strcmp0 (interface, "zwp_alpha_compositing_v1") == 0) {
     self->alpha_compositing =
