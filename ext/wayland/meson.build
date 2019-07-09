@@ -35,6 +35,8 @@ if use_wayland
         ['/stable/xdg-shell/xdg-shell.xml', 'xdg-shell-protocol.c', 'xdg-shell-client-protocol.h'],
         ['/unstable/alpha-compositing/alpha-compositing-unstable-v1.xml',
          'alpha-compositing-unstable-v1-protocol.c', 'alpha-compositing-unstable-v1-client-protocol.h'],
+        ['/unstable/linux-explicit-synchronization/linux-explicit-synchronization-unstable-v1.xml',
+         'linux-explicit-synchronization-unstable-v1-protocol.c', 'linux-explicit-synchronization-unstable-v1-client-protocol.h'],
     ]
     protocols_files = []
 

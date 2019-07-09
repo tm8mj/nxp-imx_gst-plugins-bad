@@ -55,6 +55,7 @@ struct _GstWlWindow
   struct wl_shell_surface *wl_shell_surface;
   struct xdg_surface *xdg_surface;
   struct xdg_toplevel *xdg_toplevel;
+  struct zwp_linux_surface_synchronization_v1 *surface_sync;
   gboolean configured;
   GCond configure_cond;
   GMutex configure_mutex;
