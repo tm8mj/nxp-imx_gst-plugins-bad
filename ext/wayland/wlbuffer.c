@@ -172,7 +172,9 @@ gst_buffer_add_wl_buffer (GstBuffer * gstbuffer, struct wl_buffer *wlbuffer,
 
   gst_wl_display_register_buffer (self->display, self);
 
-  wl_buffer_add_listener (self->wlbuffer, &buffer_listener, self);
+  if (!self->display->explicit_sync) {
+    wl_buffer_add_listener (self->wlbuffer, &buffer_listener, self);
+  }
 
   gst_mini_object_set_qdata ((GstMiniObject *) gstbuffer,
       gst_wl_buffer_qdata_quark (), self, (GDestroyNotify) gstbuffer_disposed);

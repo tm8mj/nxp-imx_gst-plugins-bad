@@ -116,6 +116,9 @@ gst_wl_display_finalize (GObject * gobject)
   if (self->subcompositor)
     wl_subcompositor_destroy (self->subcompositor);
 
+  if (self->explicit_sync)
+    zwp_linux_explicit_synchronization_v1_destroy (self->explicit_sync);
+
   if (self->registry)
     wl_registry_destroy (self->registry);
 
@@ -315,6 +318,9 @@ registry_handle_global (void *data, struct wl_registry *registry,
   } else if (g_strcmp0 (interface, "wl_shm") == 0) {
     self->shm = wl_registry_bind (registry, id, &wl_shm_interface, 1);
     wl_shm_add_listener (self->shm, &shm_listener, self);
+  } else if (g_strcmp0(interface, "zwp_linux_explicit_synchronization_v1") == 0) {
+    self->explicit_sync =
+        wl_registry_bind(registry, id, &zwp_linux_explicit_synchronization_v1_interface, 1);
   } else if (g_strcmp0 (interface, "wp_viewporter") == 0) {
     self->viewporter =
         wl_registry_bind (registry, id, &wp_viewporter_interface, 1);
