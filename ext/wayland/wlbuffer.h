@@ -45,6 +45,8 @@ struct _GstWlBuffer
 
   GstWlDisplay *display;
 
+  struct zwp_linux_buffer_release_v1 *buffer_release;
+
   gboolean used_by_compositor;
 };
 
