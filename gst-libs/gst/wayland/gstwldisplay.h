@@ -86,6 +86,9 @@ GST_WL_API
 struct zwp_alpha_compositing_v1 *gst_wl_display_get_alpha_compositing (GstWlDisplay * self);
 
 GST_WL_API
+struct zwp_linux_explicit_synchronization_v1 *gst_wl_display_get_explicit_sync (GstWlDisplay * self);
+
+GST_WL_API
 gint gst_wl_display_get_width (GstWlDisplay * self);
 
 GST_WL_API
