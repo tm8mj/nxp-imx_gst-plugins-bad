@@ -25,6 +25,8 @@
 #include <config.h>
 #endif
 
+#include <linux/version.h>
+
 #include "wlvideoformat.h"
 
 GST_DEBUG_CATEGORY_EXTERN (gstwayland_debug);
@@ -111,7 +113,11 @@ static const wl_DmabufVideoFormat dmabuf_formats[] = {
   {DRM_FORMAT_YUYV, GST_VIDEO_FORMAT_YUY2},
   {DRM_FORMAT_NV12, GST_VIDEO_FORMAT_NV12},
   {DRM_FORMAT_YUV420, GST_VIDEO_FORMAT_I420},
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
   {DRM_FORMAT_P010, GST_VIDEO_FORMAT_NV12_10LE},
+#else
+  {DRM_FORMAT_NV12_10LE40, GST_VIDEO_FORMAT_NV12_10LE},
+#endif
 };
 
 enum wl_shm_format
