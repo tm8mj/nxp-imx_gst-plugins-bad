@@ -60,6 +60,7 @@
 #include <drm_fourcc.h>
 #include <xf86drm.h>
 #include <xf86drmMode.h>
+#include <linux/version.h>
 
 /* signals */
 enum
@@ -855,7 +856,11 @@ gst_wayland_sink_config_hdr10 (GstWaylandSink *sink, GstBuffer * buf)
     if ((meta->hdr10meta.transferCharacteristics == 16 || meta->hdr10meta.transferCharacteristics == 18)
         &&  GST_VIDEO_INFO_FORMAT (&sink->video_info) == GST_VIDEO_FORMAT_NV12_10LE) {
       eotf = SMPTE_ST2084;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
       type = 0;
+#else
+      type = 1;
+#endif
       display_primaries_red = (guint)(meta->hdr10meta.redPrimary[0] << 16 | meta->hdr10meta.redPrimary[1]);
       display_primaries_green = (guint)(meta->hdr10meta.greenPrimary[0] << 16 | meta->hdr10meta.greenPrimary[1]);
       display_primaries_blue = (guint)(meta->hdr10meta.bluePrimary[0] << 16 | meta->hdr10meta.bluePrimary[1]);
