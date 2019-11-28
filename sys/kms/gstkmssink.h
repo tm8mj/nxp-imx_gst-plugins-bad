@@ -27,6 +27,7 @@
 #define __GST_KMS_SINK_H__
 
 #include <drm.h>
+#include <linux/version.h>
 
 #include <gst/video/gstvideosink.h>
 
@@ -90,7 +91,12 @@ struct _GstKMSSink {
   gboolean hantro_tile_enabled;
 
   /* hdr10 support */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
   struct hdr_static_metadata hdr10meta;
+#else
+  struct hdr_output_metadata hdr10meta;
+#endif
+
   gint hdr_prop_id;
 
   GstVideoInfo vinfo;
