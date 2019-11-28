@@ -33,6 +33,7 @@
 #include <drm_fourcc.h>
 #include <dirent.h>
 #include <string.h>
+#include <linux/version.h>
 
 #include "gstkmsutils.h"
 
@@ -73,7 +74,11 @@ static const struct
   DEF_FMT (YVU420, YV12),
   DEF_FMT (YUV422, Y42B),
   DEF_FMT (NV12, NV12),
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
   DEF_FMT (P010, NV12_10LE),
+#else
+  DEF_FMT (NV12_10LE40, NV12_10LE),
+#endif
   DEF_FMT (NV21, NV21),
   DEF_FMT (NV16, NV16),
 
