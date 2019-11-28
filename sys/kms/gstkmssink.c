@@ -61,7 +61,6 @@
 #include <string.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <linux/version.h>
 
 #include "gstkmssink.h"
 #include "gstkmsutils.h"
@@ -191,6 +190,7 @@ kms_open (gchar ** driver)
     "exynos", "amdgpu", "imx-drm", "rockchip", "atmel-hlcdc", "msm",
     "xlnx", "vc4", "meson", "sun4i-drm", "mxsfb-drm",
     "xilinx_drm",               /* DEPRECATED. Replaced by xlnx */
+    "imx-dcss", /* 8mq dcss device name on L5.4 */
   };
   int i, fd = -1;
 
@@ -1800,13 +1800,21 @@ gst_kms_sink_change_state (GstElement * element, GstStateChange transition)
         if (self->hold_buf[i])
           gst_buffer_unref (self->hold_buf[i]);
       }
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
       if (self->hdr10meta.eotf != 0) {
+#else
+      if (self->hdr10meta.hdmi_metadata_type1.eotf != 0) {
+#endif
         guint blob_id = 0;
         gint err = 0;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
         self->hdr10meta.eotf = 0;
         drmModeCreatePropertyBlob (self->fd, &self->hdr10meta, 1, &blob_id);
         err = drmModeObjectSetProperty (fd, self->conn_id, DRM_MODE_OBJECT_CONNECTOR, self->hdr_prop_id, blob_id);
         drmModeDestroyPropertyBlob (self->fd, blob_id);
+#else
+        err = drmModeObjectSetProperty (fd, self->conn_id, DRM_MODE_OBJECT_CONNECTOR, self->hdr_prop_id, blob_id);
+#endif
         if (err)
           GST_ERROR_OBJECT (self, "reset blob property fail %d", err);
       }
@@ -1929,6 +1937,11 @@ gst_kms_sink_config_hdr10 (GstKMSSink *self, GstBuffer * buf)
   drmModePropertyPtr prop = NULL;
   GstVideoHdr10Meta *meta = NULL;
   gint fd = get_commit_fd (self);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
+  const gchar *prop_name = "HDR_SOURCE_METADATA";
+#else
+  const gchar *prop_name = "HDR_OUTPUT_METADATA";
+#endif
 
   if (self->conn_id < 0) {
     GST_ERROR_OBJECT (self, "no connector");
@@ -1939,7 +1952,16 @@ gst_kms_sink_config_hdr10 (GstKMSSink *self, GstBuffer * buf)
   if (buf)
     meta = gst_buffer_get_video_hdr10_meta (buf);
 
+  if (!meta || (meta->hdr10meta.transferCharacteristics != 16 && meta->hdr10meta.transferCharacteristics != 18)
+        ||  GST_VIDEO_INFO_FORMAT (&self->vinfo) != GST_VIDEO_FORMAT_NV12_10LE) {
+    return;
+  }
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
   if (meta && self->hdr10meta.eotf == 0) {
+#else
+  if (meta && self->hdr10meta.hdmi_metadata_type1.eotf == 0) {
+#endif
     GST_INFO_OBJECT (self, "redPrimary x=%d y=%d", meta->hdr10meta.redPrimary[0], meta->hdr10meta.redPrimary[1]);
     GST_INFO_OBJECT (self, "greenPrimary x=%d y=%d", meta->hdr10meta.greenPrimary[0], meta->hdr10meta.greenPrimary[1]);
     GST_INFO_OBJECT (self, "bluePrimary x=%d y=%d", meta->hdr10meta.bluePrimary[0], meta->hdr10meta.bluePrimary[1]);
@@ -1956,6 +1978,7 @@ gst_kms_sink_config_hdr10 (GstKMSSink *self, GstBuffer * buf)
     GST_INFO_OBJECT (self, "chromaSampleLocTypeBottomField %d", meta->hdr10meta.chromaSampleLocTypeBottomField);
 
     /* FIXME: better to use marcos instead of const value */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
     self->hdr10meta.eotf = 2;
     self->hdr10meta.type = 0;
     self->hdr10meta.display_primaries_x [0] = meta->hdr10meta.redPrimary[0];
@@ -1970,13 +1993,32 @@ gst_kms_sink_config_hdr10 (GstKMSSink *self, GstBuffer * buf)
     self->hdr10meta.min_mastering_display_luminance = meta->hdr10meta.minMasteringLuminance & 0xffff;
     self->hdr10meta.max_fall = meta->hdr10meta.maxFrameAverageLightLevel;
     self->hdr10meta.max_cll =  meta->hdr10meta.maxContentLightLevel;
+#else
+    self->hdr10meta.metadata_type = 0;
+    self->hdr10meta.hdmi_metadata_type1.eotf = 2;
+    self->hdr10meta.hdmi_metadata_type1.metadata_type = 1;
+    self->hdr10meta.hdmi_metadata_type1.display_primaries[0].x = meta->hdr10meta.redPrimary[0] & 0xffff;
+    self->hdr10meta.hdmi_metadata_type1.display_primaries[0].y = meta->hdr10meta.redPrimary[1] & 0xffff;
+    self->hdr10meta.hdmi_metadata_type1.display_primaries[1].x = meta->hdr10meta.greenPrimary[0] & 0xffff;
+    self->hdr10meta.hdmi_metadata_type1.display_primaries[1].y = meta->hdr10meta.greenPrimary[1] & 0xffff;
+    self->hdr10meta.hdmi_metadata_type1.display_primaries[2].x = meta->hdr10meta.bluePrimary[0] & 0xffff;
+    self->hdr10meta.hdmi_metadata_type1.display_primaries[2].y = meta->hdr10meta.bluePrimary[1] & 0xffff;
+    self->hdr10meta.hdmi_metadata_type1.white_point.x = meta->hdr10meta.whitePoint[0] & 0xffff;
+    self->hdr10meta.hdmi_metadata_type1.white_point.y = meta->hdr10meta.whitePoint[1] & 0xffff;
+    self->hdr10meta.hdmi_metadata_type1.max_display_mastering_luminance =
+    			(meta->hdr10meta.maxMasteringLuminance / 10000) & 0xffff;
+    self->hdr10meta.hdmi_metadata_type1.min_display_mastering_luminance =
+    			meta->hdr10meta.minMasteringLuminance & 0xffff;
+    self->hdr10meta.hdmi_metadata_type1.max_cll = meta->hdr10meta.maxFrameAverageLightLevel & 0xffff;
+    self->hdr10meta.hdmi_metadata_type1.max_fall = meta->hdr10meta.maxContentLightLevel & 0xffff;
+#endif
 
     if (!self->hdr_prop_id) {
       props = drmModeObjectGetProperties (self->fd, self->conn_id, DRM_MODE_OBJECT_CONNECTOR);
       for (i = 0; i < props->count_props; ++i) {
         prop = drmModeGetProperty(self->fd, props->props[i]);
-        if (!strcmp(prop->name, "HDR_SOURCE_METADATA")) {
-          GST_DEBUG_OBJECT (self, "found HDR_SOURCE_METADATA property on connector %d property id %d",
+        if (!strcmp(prop->name, prop_name)) {
+          GST_DEBUG_OBJECT (self, "found %s property on connector %d property id %d", prop_name,
               self->conn_id, prop->prop_id);
           self->hdr_prop_id = prop->prop_id;
         }
@@ -1986,7 +2028,7 @@ gst_kms_sink_config_hdr10 (GstKMSSink *self, GstBuffer * buf)
     }
 
     if (self->hdr_prop_id == 0) {
-      GST_WARNING_OBJECT (self, "no HDR_SOURCE_METADATA property found");
+      GST_WARNING_OBJECT (self, "no %s property found", prop_name);
       return;
     }
 
