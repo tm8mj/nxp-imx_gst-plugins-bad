@@ -27,7 +27,7 @@
 #define __GST_KMS_SINK_H__
 
 #include <drm.h>
-#include <linux/version.h>
+#include <imx/linux/version.h>
 
 #include <gst/video/gstvideosink.h>
 

@@ -25,7 +25,7 @@
 #include <config.h>
 #endif
 
-#include <linux/version.h>
+#include <imx/linux/version.h>
 
 #include "wlvideoformat.h"
 

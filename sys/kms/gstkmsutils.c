@@ -33,7 +33,7 @@
 #include <drm_fourcc.h>
 #include <dirent.h>
 #include <string.h>
-#include <linux/version.h>
+#include <imx/linux/version.h>
 
 #include "gstkmsutils.h"
 
