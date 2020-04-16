@@ -84,6 +84,9 @@ struct _GstWlWindow
 
   /* fullscreen window size */
   gint fullscreen_width, fullscreen_height;
+
+  /* mouse location when click */
+  gint pointer_x, pointer_y;
 };
 
 struct _GstWlWindowClass
