@@ -25,6 +25,7 @@
 #endif
 
 #include <unistd.h>
+#include <linux/input.h>
 
 #include "wlwindow.h"
 #include "wlshmallocator.h"
@@ -35,6 +36,9 @@
 
 GST_DEBUG_CATEGORY_EXTERN (gstwayland_debug);
 #define GST_CAT_DEFAULT gstwayland_debug
+
+/* resize trigger margin in pixel */
+#define RESIZE_MARGIN 20
 
 enum
 {
@@ -47,6 +51,104 @@ static guint signals[LAST_SIGNAL] = { 0 };
 G_DEFINE_TYPE (GstWlWindow, gst_wl_window, G_TYPE_OBJECT);
 
 static void gst_wl_window_finalize (GObject * gobject);
+
+static void
+pointer_handle_enter (void *data, struct wl_pointer *pointer,
+    uint32_t serial, struct wl_surface *surface, wl_fixed_t sx, wl_fixed_t sy)
+{
+  GstWlWindow *window = data;
+
+  window->pointer_x = wl_fixed_to_int (sx);
+  window->pointer_y = wl_fixed_to_int (sy);
+}
+
+static void
+pointer_handle_leave (void *data, struct wl_pointer *pointer,
+    uint32_t serial, struct wl_surface *surface)
+{
+}
+
+static void
+pointer_handle_motion (void *data, struct wl_pointer *pointer,
+    uint32_t time, wl_fixed_t sx, wl_fixed_t sy)
+{
+}
+
+static void
+pointer_handle_button (void *data, struct wl_pointer *wl_pointer,
+    uint32_t serial, uint32_t time, uint32_t button, uint32_t state)
+{
+  GstWlWindow *window = data;
+
+  if (!window->xdg_toplevel)
+    return;
+
+  if (button == BTN_LEFT && state == WL_POINTER_BUTTON_STATE_PRESSED) {
+    if (window->render_rectangle.w - window->pointer_x <= RESIZE_MARGIN
+        && window->render_rectangle.h - window->pointer_y <= RESIZE_MARGIN)
+      xdg_toplevel_resize (window->xdg_toplevel, window->display->seat, serial,
+          XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM_RIGHT);
+    else
+      xdg_toplevel_move (window->xdg_toplevel, window->display->seat, serial);
+  }
+}
+
+static void
+pointer_handle_axis (void *data, struct wl_pointer *wl_pointer,
+    uint32_t time, uint32_t axis, wl_fixed_t value)
+{
+}
+
+static const struct wl_pointer_listener pointer_listener = {
+  pointer_handle_enter,
+  pointer_handle_leave,
+  pointer_handle_motion,
+  pointer_handle_button,
+  pointer_handle_axis,
+};
+
+static void
+touch_handle_down (void *data, struct wl_touch *wl_touch,
+    uint32_t serial, uint32_t time, struct wl_surface *surface,
+    int32_t id, wl_fixed_t x_w, wl_fixed_t y_w)
+{
+  GstWlWindow *window = data;
+
+  if (!window->xdg_toplevel)
+    return;
+
+  xdg_toplevel_move (window->xdg_toplevel, window->display->seat, serial);
+}
+
+static void
+touch_handle_up (void *data, struct wl_touch *wl_touch,
+    uint32_t serial, uint32_t time, int32_t id)
+{
+}
+
+static void
+touch_handle_motion (void *data, struct wl_touch *wl_touch,
+    uint32_t time, int32_t id, wl_fixed_t x_w, wl_fixed_t y_w)
+{
+}
+
+static void
+touch_handle_frame (void *data, struct wl_touch *wl_touch)
+{
+}
+
+static void
+touch_handle_cancel (void *data, struct wl_touch *wl_touch)
+{
+}
+
+static const struct wl_touch_listener touch_listener = {
+  touch_handle_down,
+  touch_handle_up,
+  touch_handle_motion,
+  touch_handle_frame,
+  touch_handle_cancel,
+};
 
 static void
 handle_xdg_toplevel_close (void *data, struct xdg_toplevel *xdg_toplevel)
@@ -77,10 +179,12 @@ handle_xdg_toplevel_configure (void *data, struct xdg_toplevel *xdg_toplevel,
     }
   }
 
-  if (width <= 0 || height <= 0)
+  if (width <= 2 * RESIZE_MARGIN || height <= 2 * RESIZE_MARGIN)
     return;
 
+  g_mutex_lock (window->render_lock);
   gst_wl_window_set_render_rectangle (window, 0, 0, width, height);
+  g_mutex_unlock (window->render_lock);
 }
 
 static const struct xdg_toplevel_listener xdg_toplevel_listener = {
@@ -392,6 +496,14 @@ gst_wl_window_new_toplevel (GstWlDisplay * display, const GstVideoInfo * info,
     }
     xdg_toplevel_add_listener (window->xdg_toplevel,
         &xdg_toplevel_listener, window);
+
+    if (display->pointer)
+      wl_pointer_add_listener (display->pointer, &pointer_listener, window);
+
+    if (display->touch) {
+      wl_touch_set_user_data (display->touch, window);
+      wl_touch_add_listener (display->touch, &touch_listener, window);
+    }
 
     gst_wl_window_ensure_fullscreen (window, fullscreen);
 

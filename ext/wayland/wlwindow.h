@@ -85,6 +85,8 @@ struct _GstWlWindow
    * already been set on the area_subsurface */
   gboolean no_border_update;
 
+  /* mouse location when click */
+  gint pointer_x, pointer_y;
 };
 
 struct _GstWlWindowClass
