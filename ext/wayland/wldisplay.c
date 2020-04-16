@@ -243,6 +243,31 @@ gst_wl_display_check_format_for_dmabuf (GstWlDisplay * display,
 }
 
 static void
+seat_handle_capabilities (void *data, struct wl_seat *seat,
+    enum wl_seat_capability caps)
+{
+  GstWlDisplay *self = data;
+
+  if ((caps & WL_SEAT_CAPABILITY_POINTER) && !self->pointer) {
+    self->pointer = wl_seat_get_pointer (seat);
+  } else if (!(caps & WL_SEAT_CAPABILITY_POINTER) && self->pointer) {
+    wl_pointer_destroy (self->pointer);
+    self->pointer = NULL;
+  }
+
+  if ((caps & WL_SEAT_CAPABILITY_TOUCH) && !self->touch) {
+    self->touch = wl_seat_get_touch (seat);
+  } else if (!(caps & WL_SEAT_CAPABILITY_TOUCH) && self->touch) {
+    wl_touch_destroy (self->touch);
+    self->touch = NULL;
+  }
+}
+
+static const struct wl_seat_listener seat_listener = {
+  seat_handle_capabilities,
+};
+
+static void
 handle_xdg_wm_base_ping (void *user_data, struct xdg_wm_base *xdg_wm_base,
     uint32_t serial)
 {
@@ -314,6 +339,9 @@ registry_handle_global (void *data, struct wl_registry *registry,
     self->xdg_wm_base =
         wl_registry_bind (registry, id, &xdg_wm_base_interface, 1);
     xdg_wm_base_add_listener (self->xdg_wm_base, &xdg_wm_base_listener, self);
+  } else if (strcmp (interface, "wl_seat") == 0) {
+    self->seat = wl_registry_bind (registry, id, &wl_seat_interface, 1);
+    wl_seat_add_listener (self->seat, &seat_listener, self);
   } else if (g_strcmp0 (interface, "zwp_fullscreen_shell_v1") == 0) {
     self->fullscreen_shell = wl_registry_bind (registry, id,
         &zwp_fullscreen_shell_v1_interface, 1);

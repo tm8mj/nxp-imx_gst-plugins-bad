@@ -58,6 +58,9 @@ struct _GstWlDisplay
   struct wl_subcompositor *subcompositor;
   struct wl_shell *wl_shell;
   struct xdg_wm_base *xdg_wm_base;
+  struct wl_seat *seat;
+  struct wl_pointer *pointer;
+  struct wl_touch *touch;
   struct zwp_fullscreen_shell_v1 *fullscreen_shell;
   struct wl_shm *shm;
   struct wl_output *output;
