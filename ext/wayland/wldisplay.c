@@ -278,6 +278,7 @@ static const struct xdg_wm_base_listener xdg_wm_base_listener = {
   handle_xdg_wm_base_ping
 };
 
+static void
 output_handle_geometry (void *data, struct wl_output *wl_output,
     int32_t x, int32_t y,
     int32_t physical_width, int32_t physical_height,
@@ -295,8 +296,10 @@ output_handle_mode (void *data, struct wl_output *wl_output,
 
   /* we only care about the current mode */
   if (flags & WL_OUTPUT_MODE_CURRENT) {
-    self->width = width;
-    self->height = height;
+    if (self->width == -1 && self->height == -1) {
+      self->width = width;
+      self->height = height;
+    }
   }
 }
 
