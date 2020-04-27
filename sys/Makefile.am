@@ -118,16 +118,22 @@ else
 TINYALSA_DIR=
 endif
 
+if USE_TINYCOMPRESS
+TINYCOMPRESS_DIR=tinycompress
+else
+TINYCOMPRESS_DIR=
+endif
+
 if USE_MSDK
 MSDK_DIR=msdk
 else
 MSDK_DIR=
 endif
 
-SUBDIRS = $(ANDROID_MEDIA_DIR) $(APPLE_MEDIA_DIR) $(BLUEZ_DIR) $(D3DVIDEOSINK_DIR) $(DECKLINK_DIR) $(DIRECTSOUND_DIR) $(WINKS_DIR) $(DVB_DIR) $(FBDEV_DIR) $(IPCPIPELINE_DIR) $(KMS_DIR) $(OPENSLES_DIR) $(SHM_DIR) $(UVCH264_DIR) $(VDPAU_DIR) $(WININET_DIR) $(WINSCREENCAP_DIR) $(WASAPI_DIR) $(NVDEC_DIR) $(NVENC_DIR) $(TINYALSA_DIR) $(MSDK_DIR)
+SUBDIRS = $(ANDROID_MEDIA_DIR) $(APPLE_MEDIA_DIR) $(BLUEZ_DIR) $(D3DVIDEOSINK_DIR) $(DECKLINK_DIR) $(DIRECTSOUND_DIR) $(WINKS_DIR) $(DVB_DIR) $(FBDEV_DIR) $(IPCPIPELINE_DIR) $(KMS_DIR) $(OPENSLES_DIR) $(SHM_DIR) $(UVCH264_DIR) $(VDPAU_DIR) $(WININET_DIR) $(WINSCREENCAP_DIR) $(WASAPI_DIR) $(NVDEC_DIR) $(NVENC_DIR) $(TINYALSA_DIR) $(TINYCOMPRESS_DIR) $(MSDK_DIR)
 
 DIST_SUBDIRS = androidmedia applemedia bluez d3dvideosink decklink directsound dvb fbdev ipcpipeline kms dshowdecwrapper dshowsrcwrapper dshowvideosink \
 		opensles shm uvch264 vdpau wasapi winks winscreencap \
-		nvdec nvenc tinyalsa msdk
+		nvdec nvenc tinyalsa tinycompress msdk
 
 include $(top_srcdir)/common/parallel-subdirs.mak

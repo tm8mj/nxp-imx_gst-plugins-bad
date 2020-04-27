@@ -1043,6 +1043,12 @@ AG_GST_CHECK_FEATURE(TINYALSA, [tinyalsa], tinyalsa, [
   AC_CHECK_HEADER(tinyalsa/asoundlib.h, HAVE_TINYALSA="yes", HAVE_TINYALSA="no")
 ])
 
+dnl check for tinycompress
+translit(dnm, m, l) AM_CONDITIONAL(USE_TINYCOMPRESS, true)
+AG_GST_CHECK_FEATURE(TINYCOMPRESS, [tinycompress], tinycompress, [
+  AC_CHECK_HEADER(tinycompress/tinycompress.h, HAVE_TINYCOMPRESS="yes", HAVE_TINYCOMPRESS="no")
+])
+
 dnl check for intel mediasdk
 translit(dnm, m, l) AM_CONDITIONAL(USE_MSDK, true)
 AG_GST_CHECK_FEATURE(MSDK, [Intel MediaSDK], msdk, [
@@ -2617,6 +2623,7 @@ sys/nvenc/Makefile
 sys/opensles/Makefile
 sys/shm/Makefile
 sys/tinyalsa/Makefile
+sys/tinycompress/Makefile
 sys/uvch264/Makefile
 sys/vdpau/Makefile
 sys/wasapi/Makefile
