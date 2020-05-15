@@ -42,7 +42,6 @@ void           gst_video_calculate_device_ratio (guint dev_width,
 						 guint dev_height_mm,
 						 guint * dpy_par_n,
 						 guint * dpy_par_d);
-const gchar * get_imx_drm_device_name (void);
 G_END_DECLS
 
 #endif
