@@ -500,7 +500,7 @@ check_scaleable (GstKMSSink * self)
   /* FIXME: for dpu, we can only hard code the scale ratio,
    * dpu has no limitation when do upscale but can not support
    * downscale */
-  if (strcmp (get_imx_drm_device_name(), "DPU") == 0) {
+  if (HAS_DPU()) {
     self->downscale_ratio = 1;
     self->upscale_ratio = SCALE_RATIO_NO_LIMITATION;
     return;
@@ -2089,7 +2089,7 @@ gst_kms_sink_show_frame (GstVideoSink * vsink, GstBuffer * buf)
     return GST_FLOW_OK;
   }
 
-  if (strcmp (get_imx_drm_device_name(), "DPU") == 0) {
+  if (HAS_DPU()) {
     fmt = gst_drm_format_from_video (GST_VIDEO_INFO_FORMAT (&self->vinfo));
     alignment = gst_drm_alignment_from_drm_format (fmt);
   } else {
