@@ -23,9 +23,12 @@
 
 #include <gst/gst.h>
 
+#include "gstwlwindow.h"
+#include "gstwldisplay.h"
+
 G_BEGIN_DECLS
 
-gboolean gst_wl_init_buffer_scale(gint display_width, gint display_height, guint * scale);
+gboolean gst_wl_init_surface_state(GstWlDisplay * display, GstWlWindow * self);
 G_END_DECLS
 
 #endif
