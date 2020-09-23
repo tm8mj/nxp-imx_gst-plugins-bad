@@ -65,6 +65,9 @@ struct _GstWaylandSink
   GstVideoInfo video_info;
   gboolean fullscreen;
 
+  /* preferred window resolution */
+  gint preferred_width, preferred_height;
+
   gchar *display_name;
 
   gboolean redraw_pending;
