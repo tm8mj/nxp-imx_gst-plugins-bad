@@ -37,9 +37,6 @@
 
 #define WESTON_INI "/etc/xdg/weston/weston.ini"
 
-/* FIXME: try to get from wayland server */
-#define PANEL_HEIGH 32
-
 gboolean
 gst_wl_init_surface_state (GstWlDisplay * display, GstWlWindow * window)
 {
