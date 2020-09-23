@@ -68,6 +68,8 @@ enum
 enum
 {
   PROP_0,
+  PROP_WINDOW_WIDTH,
+  PROP_WINDOW_HEIGHT,
   PROP_DISPLAY,
   PROP_FULLSCREEN,
   PROP_ALPHA
@@ -207,6 +209,16 @@ gst_wayland_sink_class_init (GstWaylandSinkClass * klass)
   gstvideosink_class->show_frame =
       GST_DEBUG_FUNCPTR (gst_wayland_sink_show_frame);
 
+  g_object_class_install_property (gobject_class, PROP_WINDOW_WIDTH,
+      g_param_spec_int ("window-width", "Wayland sink window width", "Wayland "
+          "sink preferred window width in pixel",
+          -1, G_MAXINT, -1, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_WINDOW_HEIGHT,
+      g_param_spec_int ("window-height", "Wayland sink window height",
+          "Wayland " "sink preferred window height in pixel", -1, G_MAXINT, -1,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
   g_object_class_install_property (gobject_class, PROP_DISPLAY,
       g_param_spec_string ("display", "Wayland Display name", "Wayland "
           "display name to connect to, if not supplied via the GstContext",
@@ -229,6 +241,8 @@ static void
 gst_wayland_sink_init (GstWaylandSink * sink)
 {
   sink->alpha = 0.0f;
+  sink->preferred_width = -1;
+  sink->preferred_height = -1;
   g_mutex_init (&sink->display_lock);
   g_mutex_init (&sink->render_lock);
   g_cond_init (&sink->redraw_wait);
@@ -264,6 +278,13 @@ gst_wayland_sink_get_property (GObject * object,
       GST_OBJECT_LOCK (sink);
       g_value_set_boolean (value, sink->fullscreen);
       GST_OBJECT_UNLOCK (sink);
+      break;
+    case PROP_WINDOW_WIDTH:
+      g_value_set_int (value, sink->preferred_width);
+      break;
+    case PROP_WINDOW_HEIGHT:
+      g_value_set_int (value, sink->preferred_height);
+      break;
     case PROP_ALPHA:
       g_value_set_float (value, sink->alpha);
       break;
@@ -289,6 +310,13 @@ gst_wayland_sink_set_property (GObject * object,
       GST_OBJECT_LOCK (sink);
       gst_wayland_sink_set_fullscreen (sink, g_value_get_boolean (value));
       GST_OBJECT_UNLOCK (sink);
+      break;
+    case PROP_WINDOW_WIDTH:
+      sink->preferred_width = g_value_get_int (value);
+      break;
+    case PROP_WINDOW_HEIGHT:
+      sink->preferred_height = g_value_get_int (value);
+      break;
     case PROP_ALPHA:
       sink->alpha = g_value_get_float (value);
       break;
@@ -405,6 +433,8 @@ gst_wayland_sink_change_state (GstElement * element, GstStateChange transition)
     case GST_STATE_CHANGE_NULL_TO_READY:
       if (!gst_wayland_sink_find_display (sink))
         return GST_STATE_CHANGE_FAILURE;
+      sink->display->preferred_width = sink->preferred_width;
+      sink->display->preferred_height = sink->preferred_height;
       break;
     default:
       break;

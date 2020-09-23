@@ -252,7 +252,7 @@ gst_wl_window_new_internal (GstWlDisplay * display, GMutex * render_lock)
 
   if (!gst_wl_init_surface_state (display, window)) {
     window->fullscreen_width = display->width;
-    window->fullscreen_height = display->height;
+    window->fullscreen_height = display->height - PANEL_HEIGH;
     window->scale = 1;
     GST_WARNING
         ("init surface_state fail, fallback to scale=%d fullscreen (%dx%d)",
@@ -355,9 +355,12 @@ gst_wl_window_new_toplevel (GstWlDisplay * display, const GstVideoInfo * info,
   /* render_rectangle is already set via toplevel_configure in
    * xdg_shell fullscreen mode */
   if (!(display->xdg_wm_base && fullscreen)) {
-    /* set the initial size to be the same as the reported video size */
     gint width, height;
-    if (window->fullscreen_width <= 0) {
+
+    if (display->preferred_width > 0 && display->preferred_height > 0) {
+      width = display->preferred_width;
+      height = display->preferred_height;
+    } else if (window->fullscreen_width <= 0) {
       /* set the initial size to be the same as the reported video size */
       width =
           gst_util_uint64_scale_int_round (info->width, info->par_n,
