@@ -80,6 +80,9 @@ struct _GstWlWindow
 
   /* video buffer scale */
   guint scale;
+
+  /* fullscreen window size */
+  gint fullscreen_width, fullscreen_height;
 };
 
 struct _GstWlWindowClass
