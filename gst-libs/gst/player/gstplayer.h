@@ -301,21 +301,33 @@ GST_PLAYER_API
 GstSample * gst_player_get_video_snapshot (GstPlayer * player,
     GstPlayerSnapshotFormat format, const GstStructure * config);
 /* Custom gstplayer API */
+GST_PLAYER_API
 gboolean    gst_player_set_rotate (GstPlayer * player, gint rotation);
+GST_PLAYER_API
 gint        gst_player_get_rotate (GstPlayer * player);
 
+GST_PLAYER_API
 void        gst_player_config_set_force_aspect_ratio (GstPlayer * self, gboolean force_aspect_ratio);
+GST_PLAYER_API
 gboolean    gst_player_config_get_force_aspect_ratio (const GstStructure * config);
 
+GST_PLAYER_API
 gboolean    gst_player_set_audio_sink (GstPlayer * player, GstElement * audio_sink);
+GST_PLAYER_API
 gboolean    gst_player_set_text_sink (GstPlayer * player, GstElement * text_sink);
+GST_PLAYER_API
 GstElement * gst_player_get_audio_sink (GstPlayer * player);
+GST_PLAYER_API
 GstElement * gst_player_get_text_sink (GstPlayer * player);
 
+GST_PLAYER_API
 GstPlayerState  gst_player_get_state (GstPlayer * player);
 
+GST_PLAYER_API
 void         gst_player_play_sync (GstPlayer * player, gint time_out);
+GST_PLAYER_API
 void         gst_player_stop_sync (GstPlayer * player, gint time_out);
+GST_PLAYER_API
 void         gst_player_pause_sync (GstPlayer * player, gint time_out);
 
 G_END_DECLS
