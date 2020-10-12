@@ -31,6 +31,8 @@ if use_wayland
          'alpha-compositing-unstable-v1-protocol.c', 'alpha-compositing-unstable-v1-client-protocol.h'],
         ['/unstable/linux-explicit-synchronization/linux-explicit-synchronization-unstable-v1.xml',
          'linux-explicit-synchronization-unstable-v1-protocol.c', 'linux-explicit-synchronization-unstable-v1-client-protocol.h'],
+        ['/unstable/hdr10-metadata/hdr10-metadata-unstable-v1.xml',
+         'hdr10-metadata-unstable-v1-protocol.c', 'hdr10-metadata-unstable-v1-client-protocol.h'],
     ]
     protocols_files = []
 

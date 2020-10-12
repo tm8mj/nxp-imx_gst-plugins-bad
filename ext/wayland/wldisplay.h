@@ -30,6 +30,7 @@
 #include "fullscreen-shell-unstable-v1-client-protocol.h"
 #include "alpha-compositing-unstable-v1-client-protocol.h"
 #include "linux-explicit-synchronization-unstable-v1-client-protocol.h"
+#include "hdr10-metadata-unstable-v1-client-protocol.h"
 
 G_BEGIN_DECLS
 
@@ -68,6 +69,7 @@ struct _GstWlDisplay
   struct zwp_linux_dmabuf_v1 *dmabuf;
   struct zwp_alpha_compositing_v1 *alpha_compositing;
   struct zwp_linux_explicit_synchronization_v1 *explicit_sync;
+  struct zwp_hdr10_metadata_v1 *hdr10_metadata;
   GArray *shm_formats;
   GArray *dmabuf_formats;
   GHashTable *dmabuf_modifiers;
