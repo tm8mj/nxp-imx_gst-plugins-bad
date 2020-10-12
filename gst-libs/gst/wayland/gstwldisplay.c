@@ -30,6 +30,7 @@
 #include "xdg-shell-client-protocol.h"
 #include "alpha-compositing-unstable-v1-client-protocol.h"
 #include "linux-explicit-synchronization-unstable-v1-client-protocol.h"
+#include "hdr10-metadata-unstable-v1-client-protocol.h"
 
 #include <errno.h>
 
@@ -58,6 +59,7 @@ typedef struct _GstWlDisplayPrivate
   struct zwp_linux_dmabuf_v1 *dmabuf;
   struct zwp_alpha_compositing_v1 *alpha_compositing;
   struct zwp_linux_explicit_synchronization_v1 *explicit_sync;
+  struct zwp_hdr10_metadata_v1 *hdr10_metadata;
   GArray *shm_formats;
   GArray *dmabuf_formats;
   GHashTable *dmabuf_modifiers;
@@ -176,6 +178,9 @@ gst_wl_display_finalize (GObject * gobject)
 
   if (priv->explicit_sync)
     zwp_linux_explicit_synchronization_v1_destroy (priv->explicit_sync);
+
+  if (priv->hdr10_metadata)
+    zwp_hdr10_metadata_v1_destroy (priv->hdr10_metadata);
 
   if (priv->registry)
     wl_registry_destroy (priv->registry);
@@ -424,6 +429,9 @@ registry_handle_global (void *data, struct wl_registry *registry,
   } else if (g_strcmp0 (interface, "zwp_alpha_compositing_v1") == 0) {
     priv->alpha_compositing =
         wl_registry_bind (registry, id, &zwp_alpha_compositing_v1_interface, 1);
+  } else if (g_strcmp0 (interface, "zwp_hdr10_metadata_v1") == 0) {
+    priv->hdr10_metadata =
+        wl_registry_bind (registry, id, &zwp_hdr10_metadata_v1_interface, 1);
   } else if (g_strcmp0 (interface, "wl_output") == 0) {
     priv->output =
 	wl_registry_bind (registry, id, &wl_output_interface, MIN (version, 2));
@@ -712,6 +720,14 @@ gst_wl_display_get_touch (GstWlDisplay * self)
   GstWlDisplayPrivate *priv = gst_wl_display_get_instance_private (self);
 
   return priv->touch;
+}
+
+struct zwp_hdr10_metadata_v1 *
+gst_wl_display_get_hdr10_metadata (GstWlDisplay * self)
+{
+  GstWlDisplayPrivate *priv = gst_wl_display_get_instance_private (self);
+
+  return priv->hdr10_metadata;
 }
 
 gint
