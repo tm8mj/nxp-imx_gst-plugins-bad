@@ -122,6 +122,9 @@ gst_wl_display_finalize (GObject * gobject)
   if (self->explicit_sync)
     zwp_linux_explicit_synchronization_v1_destroy (self->explicit_sync);
 
+  if (self->hdr10_metadata)
+    zwp_hdr10_metadata_v1_destroy (self->hdr10_metadata);
+
   if (self->registry)
     wl_registry_destroy (self->registry);
 
@@ -367,6 +370,9 @@ registry_handle_global (void *data, struct wl_registry *registry,
   } else if (g_strcmp0 (interface, "zwp_alpha_compositing_v1") == 0) {
     self->alpha_compositing =
         wl_registry_bind (registry, id, &zwp_alpha_compositing_v1_interface, 1);
+  } else if (g_strcmp0 (interface, "zwp_hdr10_metadata_v1") == 0) {
+    self->hdr10_metadata =
+        wl_registry_bind (registry, id, &zwp_hdr10_metadata_v1_interface, 1);
   } else if (g_strcmp0 (interface, "wl_output") == 0) {
     self->output =
         wl_registry_bind (registry, id, &wl_output_interface, MIN (version, 2));
