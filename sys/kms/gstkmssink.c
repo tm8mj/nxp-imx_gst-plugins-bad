@@ -2711,13 +2711,6 @@ plugin_init (GstPlugin * plugin)
 {
   GstRank rank = GST_RANK_SECONDARY;
 
-  if (HAS_DPU()) {
-    if (HAS_VPU())
-      rank = IMX_GST_PLUGIN_RANK;
-  } else if (HAS_DCSS()) {
-    rank = IMX_GST_PLUGIN_RANK;
-  }
-
   if (!gst_element_register (plugin, GST_PLUGIN_NAME, rank,
           GST_TYPE_KMS_SINK))
     return FALSE;
