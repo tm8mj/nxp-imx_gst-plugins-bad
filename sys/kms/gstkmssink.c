@@ -68,8 +68,6 @@
 #include "gstkmsallocator.h"
 #include "gstimxcommon.h"
 
-#include <gst/video/gstvideohdr10meta.h>
-
 #define GST_PLUGIN_NAME "kmssink"
 #define GST_PLUGIN_DESC "Video sink using the Linux kernel mode setting API"
 
@@ -82,6 +80,7 @@ static GstFlowReturn gst_kms_sink_show_frame (GstVideoSink * vsink,
 static void gst_kms_sink_video_overlay_init (GstVideoOverlayInterface * iface);
 static void gst_kms_sink_drain (GstKMSSink * self);
 static void ensure_kms_allocator (GstKMSSink * self);
+static void gst_kms_sink_config_hdr10 (GstKMSSink *self, const GstCaps * caps);
 
 #define parent_class gst_kms_sink_parent_class
 G_DEFINE_TYPE_WITH_CODE (GstKMSSink, gst_kms_sink, GST_TYPE_VIDEO_SINK,
@@ -1344,6 +1343,8 @@ gst_kms_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
   }
   GST_OBJECT_UNLOCK (self);
 
+  gst_kms_sink_config_hdr10 (self, caps);
+
   GST_DEBUG_OBJECT (self, "negotiated caps = %" GST_PTR_FORMAT, caps);
 
   return TRUE;
@@ -1927,15 +1928,16 @@ done:
   return buf;
 }
 
-void
-gst_kms_sink_config_hdr10 (GstKMSSink *self, GstBuffer * buf)
+static void
+gst_kms_sink_config_hdr10 (GstKMSSink *self, const GstCaps * caps)
 {
   guint blob_id = 0;
   int err;
   gint i;
   drmModeObjectPropertiesPtr props = NULL;
   drmModePropertyPtr prop = NULL;
-  GstVideoHdr10Meta *meta = NULL;
+  GstVideoMasteringDisplayInfo minfo;
+  GstVideoContentLightLevel cll;
   gint fd = get_commit_fd (self);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
   const gchar *prop_name = "HDR_SOURCE_METADATA";
@@ -1948,69 +1950,73 @@ gst_kms_sink_config_hdr10 (GstKMSSink *self, GstBuffer * buf)
     return;
   }
 
-  /* buf could be NULL when resize */
-  if (buf)
-    meta = gst_buffer_get_video_hdr10_meta (buf);
+  gst_video_mastering_display_info_init (&minfo);
+  gst_video_content_light_level_init (&cll);
 
-  if (!meta || (meta->hdr10meta.transferCharacteristics != 16 && meta->hdr10meta.transferCharacteristics != 18)
-        ||  GST_VIDEO_INFO_FORMAT (&self->vinfo) != GST_VIDEO_FORMAT_NV12_10LE) {
-    return;
+  if (caps) {
+    if (!gst_video_mastering_display_info_from_caps (&minfo, caps)
+        || !gst_video_content_light_level_from_caps (&cll, caps)) {
+      GST_INFO_OBJECT (self, "no HDR metadata present in caps");
+      return;
+    }
   }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
-  if (meta && self->hdr10meta.eotf == 0) {
+  if (self->hdr10meta.eotf == 0) {
 #else
-  if (meta && self->hdr10meta.hdmi_metadata_type1.eotf == 0) {
+  if (self->hdr10meta.hdmi_metadata_type1.eotf == 0) {
 #endif
-    GST_INFO_OBJECT (self, "redPrimary x=%d y=%d", meta->hdr10meta.redPrimary[0], meta->hdr10meta.redPrimary[1]);
-    GST_INFO_OBJECT (self, "greenPrimary x=%d y=%d", meta->hdr10meta.greenPrimary[0], meta->hdr10meta.greenPrimary[1]);
-    GST_INFO_OBJECT (self, "bluePrimary x=%d y=%d", meta->hdr10meta.bluePrimary[0], meta->hdr10meta.bluePrimary[1]);
-    GST_INFO_OBJECT (self, "whitePoint x=%d y=%d", meta->hdr10meta.whitePoint[0], meta->hdr10meta.whitePoint[1]);
-    GST_INFO_OBJECT (self, "maxMasteringLuminance %d", meta->hdr10meta.maxMasteringLuminance);
-    GST_INFO_OBJECT (self, "minMasteringLuminance %d", meta->hdr10meta.minMasteringLuminance);
-    GST_INFO_OBJECT (self, "maxContentLightLevel %d", meta->hdr10meta.maxContentLightLevel);
-    GST_INFO_OBJECT (self, "maxFrameAverageLightLevel %d", meta->hdr10meta.maxFrameAverageLightLevel);
-    GST_INFO_OBJECT (self, "transferCharacteristics %d", meta->hdr10meta.transferCharacteristics);
-    GST_INFO_OBJECT (self, "colourPrimaries %d", meta->hdr10meta.colourPrimaries);
-    GST_INFO_OBJECT (self, "matrixCoeffs %d", meta->hdr10meta.matrixCoeffs);
-    GST_INFO_OBJECT (self, "fullRange %d", meta->hdr10meta.fullRange);
-    GST_INFO_OBJECT (self, "chromaSampleLocTypeTopField %d", meta->hdr10meta.chromaSampleLocTypeTopField);
-    GST_INFO_OBJECT (self, "chromaSampleLocTypeBottomField %d", meta->hdr10meta.chromaSampleLocTypeBottomField);
+    GST_INFO_OBJECT (self, "redPrimary x=%d y=%d", minfo.display_primaries[0].x,
+        minfo.display_primaries[0].y);
+    GST_INFO_OBJECT (self, "greenPrimary x=%d y=%d",
+        minfo.display_primaries[1].x, minfo.display_primaries[1].y);
+    GST_INFO_OBJECT (self, "bluePrimary x=%d y=%d",
+        minfo.display_primaries[2].x, minfo.display_primaries[2].y);
+    GST_INFO_OBJECT (self, "whitePoint x=%d y=%d", minfo.white_point.x,
+        minfo.white_point.y);
+    GST_INFO_OBJECT (self, "maxMasteringLuminance %d",
+        minfo.max_display_mastering_luminance);
+    GST_INFO_OBJECT (self, "minMasteringLuminance %d",
+        minfo.min_display_mastering_luminance);
+    GST_INFO_OBJECT (self, "maxContentLightLevel %d",
+        cll.max_content_light_level);
+    GST_INFO_OBJECT (self, "maxFrameAverageLightLevel %d",
+        cll.max_frame_average_light_level);
 
     /* FIXME: better to use marcos instead of const value */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
     self->hdr10meta.eotf = 2;
     self->hdr10meta.type = 0;
-    self->hdr10meta.display_primaries_x [0] = meta->hdr10meta.redPrimary[0];
-    self->hdr10meta.display_primaries_x [1] = meta->hdr10meta.greenPrimary[0];
-    self->hdr10meta.display_primaries_x [2] = meta->hdr10meta.bluePrimary[0];
-    self->hdr10meta.display_primaries_y [0] = meta->hdr10meta.redPrimary[1];
-    self->hdr10meta.display_primaries_y [1] = meta->hdr10meta.greenPrimary[1];
-    self->hdr10meta.display_primaries_y [2] = meta->hdr10meta.bluePrimary[1];
-    self->hdr10meta.white_point_x = meta->hdr10meta.whitePoint[0];
-    self->hdr10meta.white_point_y = meta->hdr10meta.whitePoint[1];
-    self->hdr10meta.max_mastering_display_luminance = (meta->hdr10meta.maxMasteringLuminance / 10000) & 0xffff;;
-    self->hdr10meta.min_mastering_display_luminance = meta->hdr10meta.minMasteringLuminance & 0xffff;
-    self->hdr10meta.max_fall = meta->hdr10meta.maxFrameAverageLightLevel;
-    self->hdr10meta.max_cll =  meta->hdr10meta.maxContentLightLevel;
+    self->hdr10meta.display_primaries_x [0] = minfo.display_primaries[0].x;
+    self->hdr10meta.display_primaries_x [1] = minfo.display_primaries[1].x;
+    self->hdr10meta.display_primaries_x [2] = minfo.display_primaries[2].x;
+    self->hdr10meta.display_primaries_y [0] = minfo.display_primaries[0].y;
+    self->hdr10meta.display_primaries_y [1] = minfo.display_primaries[1].y;
+    self->hdr10meta.display_primaries_y [2] = minfo.display_primaries[2].y;
+    self->hdr10meta.white_point_x = minfo.white_point.x;
+    self->hdr10meta.white_point_y = minfo.white_point.y;
+    self->hdr10meta.max_mastering_display_luminance = (minfo.max_display_mastering_luminance / 10000) & 0xffff;;
+    self->hdr10meta.min_mastering_display_luminance = minfo.min_display_mastering_luminance & 0xffff;
+    self->hdr10meta.max_fall = cll.max_frame_average_light_level;
+    self->hdr10meta.max_cll = cll.max_content_light_level;
 #else
     self->hdr10meta.metadata_type = 0;
     self->hdr10meta.hdmi_metadata_type1.eotf = 2;
     self->hdr10meta.hdmi_metadata_type1.metadata_type = 1;
-    self->hdr10meta.hdmi_metadata_type1.display_primaries[0].x = meta->hdr10meta.redPrimary[0] & 0xffff;
-    self->hdr10meta.hdmi_metadata_type1.display_primaries[0].y = meta->hdr10meta.redPrimary[1] & 0xffff;
-    self->hdr10meta.hdmi_metadata_type1.display_primaries[1].x = meta->hdr10meta.greenPrimary[0] & 0xffff;
-    self->hdr10meta.hdmi_metadata_type1.display_primaries[1].y = meta->hdr10meta.greenPrimary[1] & 0xffff;
-    self->hdr10meta.hdmi_metadata_type1.display_primaries[2].x = meta->hdr10meta.bluePrimary[0] & 0xffff;
-    self->hdr10meta.hdmi_metadata_type1.display_primaries[2].y = meta->hdr10meta.bluePrimary[1] & 0xffff;
-    self->hdr10meta.hdmi_metadata_type1.white_point.x = meta->hdr10meta.whitePoint[0] & 0xffff;
-    self->hdr10meta.hdmi_metadata_type1.white_point.y = meta->hdr10meta.whitePoint[1] & 0xffff;
+    self->hdr10meta.hdmi_metadata_type1.display_primaries[0].x = minfo.display_primaries[0].x;
+    self->hdr10meta.hdmi_metadata_type1.display_primaries[0].y = minfo.display_primaries[0].y;
+    self->hdr10meta.hdmi_metadata_type1.display_primaries[1].x = minfo.display_primaries[1].x;
+    self->hdr10meta.hdmi_metadata_type1.display_primaries[1].y = minfo.display_primaries[1].y;
+    self->hdr10meta.hdmi_metadata_type1.display_primaries[2].x = minfo.display_primaries[2].x;
+    self->hdr10meta.hdmi_metadata_type1.display_primaries[2].y = minfo.display_primaries[2].y;
+    self->hdr10meta.hdmi_metadata_type1.white_point.x = minfo.white_point.x;
+    self->hdr10meta.hdmi_metadata_type1.white_point.y = minfo.white_point.y;
     self->hdr10meta.hdmi_metadata_type1.max_display_mastering_luminance =
-    			(meta->hdr10meta.maxMasteringLuminance / 10000) & 0xffff;
+    			(minfo.max_display_mastering_luminance / 10000) & 0xffff;
     self->hdr10meta.hdmi_metadata_type1.min_display_mastering_luminance =
-    			meta->hdr10meta.minMasteringLuminance & 0xffff;
-    self->hdr10meta.hdmi_metadata_type1.max_cll = meta->hdr10meta.maxFrameAverageLightLevel & 0xffff;
-    self->hdr10meta.hdmi_metadata_type1.max_fall = meta->hdr10meta.maxContentLightLevel & 0xffff;
+    			minfo.min_display_mastering_luminance & 0xffff;
+    self->hdr10meta.hdmi_metadata_type1.max_cll = cll.max_content_light_level;
+    self->hdr10meta.hdmi_metadata_type1.max_fall = cll.max_frame_average_light_level;
 #endif
 
     if (!self->hdr_prop_id) {
@@ -2112,8 +2118,6 @@ gst_kms_sink_show_frame (GstVideoSink * vsink, GstBuffer * buf)
 
   if (!buffer)
     return GST_FLOW_ERROR;
-  
-  gst_kms_sink_config_hdr10 (self, buffer);
 
   fb_id = gst_kms_memory_get_fb_id (gst_buffer_peek_memory (buffer, 0));
   if (fb_id == 0)
