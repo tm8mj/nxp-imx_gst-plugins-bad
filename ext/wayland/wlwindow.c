@@ -713,22 +713,18 @@ gst_wl_window_render (GstWlWindow * window, GstWlBuffer * buffer,
 
   if (G_LIKELY (buffer)) {
     gst_wl_buffer_attach (buffer, window->video_surface_wrapper);
+    wl_surface_set_buffer_scale (window->video_surface_wrapper, window->scale);
     wl_surface_damage (window->video_surface_wrapper, 0, 0,
         window->video_rectangle.w, window->video_rectangle.h);
     wl_surface_commit (window->video_surface_wrapper);
   } else {
     /* clear both video and parent surfaces */
     wl_surface_attach (window->video_surface_wrapper, NULL, 0, 0);
+    wl_surface_set_buffer_scale (window->video_surface_wrapper, window->scale);
     wl_surface_commit (window->video_surface_wrapper);
     wl_surface_attach (window->area_surface_wrapper, NULL, 0, 0);
     wl_surface_commit (window->area_surface_wrapper);
   }
-
-  wl_surface_set_buffer_scale (window->video_surface_wrapper, window->scale);
-
-  wl_surface_damage (window->video_surface_wrapper, 0, 0,
-      window->video_rectangle.w, window->video_rectangle.h);
-  wl_surface_commit (window->video_surface_wrapper);
 
   if (G_UNLIKELY (info)) {
     /* commit also the parent (area_surface) in order to change
