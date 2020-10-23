@@ -483,6 +483,7 @@ AG_GST_CHECK_PLUGIN(segmentclip)
 AG_GST_CHECK_PLUGIN(siren)
 AG_GST_CHECK_PLUGIN(smooth)
 AG_GST_CHECK_PLUGIN(speed)
+AG_GST_CHECK_PLUGIN(spdifdemux)
 AG_GST_CHECK_PLUGIN(subenc)
 AG_GST_CHECK_PLUGIN(timecode)
 AG_GST_CHECK_PLUGIN(videofilters)
@@ -2579,6 +2580,7 @@ gst/segmentclip/Makefile
 gst/siren/Makefile
 gst/smooth/Makefile
 gst/speed/Makefile
+gst/spdifdemux/Makefile
 gst/subenc/Makefile
 gst/timecode/Makefile
 gst/videofilters/Makefile
