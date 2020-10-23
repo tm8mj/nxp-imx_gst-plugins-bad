@@ -10,7 +10,7 @@ foreach plugin : ['accurip', 'adpcmdec', 'adpcmenc', 'aiff', 'asfmux',
                   'mxf', 'netsim', 'onvif', 'pcapparse', 'pnm', 'proxy',
                   'rawparse', 'removesilence', 'rist', 'rtmp2', 'rtp', 'sdp',
                   'segmentclip', 'siren', 'smooth', 'speed', 'subenc', 'switchbin',
-                  'timecode', 'transcode', 'videofilters',
+                  'timecode', 'transcode', 'videofilters', 'spdifdemux',
                   'videoframe_audiolevel', 'videoparsers', 'videosignal',
                   'vmnc', 'y4m']
   if not get_option(plugin).disabled()
