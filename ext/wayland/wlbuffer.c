@@ -196,8 +196,12 @@ gst_buffer_get_wl_buffer (GstWlDisplay * display, GstBuffer * gstbuffer)
   mem0 = gst_buffer_peek_memory (gstbuffer, 0);
 
   wlbuf = gst_wl_display_lookup_buffer (display, mem0);
-  if (wlbuf)
-    wlbuf->current_gstbuffer = gstbuffer;
+  if (wlbuf) {
+    if (wlbuf->used_by_compositor)
+      gst_buffer_replace (&wlbuf->current_gstbuffer, gstbuffer);
+    else
+      wlbuf->current_gstbuffer = gstbuffer;
+  }
 
   return wlbuf;
 }
