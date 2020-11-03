@@ -27,7 +27,6 @@
 #include <gst/audio/gstaudioringbuffer.h>
 
 G_BEGIN_DECLS
-
 #define GST_TYPE_SPDIFDEMUX \
   (gst_spdifdemux_get_type())
 #define GST_SPDIFDEMUX(obj) \
@@ -39,7 +38,8 @@ G_BEGIN_DECLS
 #define GST_IS_SPDIFDEMUX_CLASS(klass) \
   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_SPDIFDEMUX))
 
-typedef enum {
+typedef enum
+{
   GST_SPDIFDEMUX_HEADER,
   GST_SPDIFDEMUX_DATA
 } GstSpdifDemuxState;
@@ -52,24 +52,25 @@ typedef struct _GstSpdifDemuxClass GstSpdifDemuxClass;
  *
  * Opaque data structure.
  */
-struct _GstSpdifDemux {
+struct _GstSpdifDemux
+{
   GstElement parent;
 
   /* pads */
-  GstPad *sinkpad,*srcpad;
+  GstPad *sinkpad, *srcpad;
 
   /* for delayed source pad creation for when
    * we have the first chunk of data and know
    * the format for sure */
-  GstCaps     *caps;
-  GstEvent    *start_segment;
+  GstCaps *caps;
+  GstEvent *start_segment;
 
   /* WAVE decoding state */
   GstSpdifDemuxState state;
   gboolean abort_buffering;
 
-  GstAudioRingBufferFormatType type;
   GstAudioRingBufferSpec spec;
+  GstAudioRingBufferSpec spec_out;
 
   /* format of audio, see defines below */
   gint format;
@@ -91,14 +92,14 @@ struct _GstSpdifDemux {
   guint max_buf_size;
 
   /* position in data part */
-  guint64	offset;
-  guint64	end_offset;
-  guint64 	dataleft;
+  guint64 offset;
+  guint64 end_offset;
+  guint64 dataleft;
   /* offset/length of data part */
-  guint64 	datastart;
-  guint64 	datasize;
+  guint64 datastart;
+  guint64 datasize;
   /* duration in time */
-  guint64 	duration;
+  guint64 duration;
 
   /* For streaming */
   GstAdapter *adapter;
@@ -116,12 +117,12 @@ struct _GstSpdifDemux {
   gboolean ignore_length;
 };
 
-struct _GstSpdifDemuxClass {
+struct _GstSpdifDemuxClass
+{
   GstElementClass parent_class;
 };
 
-GType gst_spdifdemux_get_type(void);
+GType gst_spdifdemux_get_type (void);
 
 G_END_DECLS
-
 #endif /* __GST_SPDIFDEMUX_H__ */
