@@ -56,7 +56,16 @@ GST_DEBUG_CATEGORY_STATIC (spdifdemux_debug);
 typedef enum
 {
   IEC937_FORMAT_TYPE_AC3 = 0x01,
-  IEC937_FORMAT_TYPE_EAC3 = 0x15
+  IEC937_FORMAT_TYPE_EAC3 = 0x15,
+  IEC937_FORMAT_TYPE_MPEG1L1 = 0x4,
+  IEC937_FORMAT_TYPE_MPEG1L23 = 0x5,
+  IEC937_FORMAT_TYPE_MPEG2 = 0x6,
+  IEC937_FORMAT_TYPE_MPEG2L1 = 0x8,
+  IEC937_FORMAT_TYPE_MPEG2L2 = 0x9,
+  IEC937_FORMAT_TYPE_MPEG2L3 = 0xA,
+  IEC937_FORMAT_TYPE_MPEG2_4_AAC = 0x7,
+  IEC937_FORMAT_TYPE_MPEG2_4_AAC_2 = 0x13,
+  IEC937_FORMAT_TYPE_MPEG2_4_AAC_3 = 0x33
 } GstIec937FormatType;
 
 static void gst_spdifdemux_dispose (GObject * object);
@@ -108,8 +117,8 @@ static GstStaticPadTemplate src_template_factory =
     GST_PAD_ALWAYS,
     GST_STATIC_CAPS ("audio/x-ac3;"
         "audio/x-eac3; "
-        "audio/mpeg, mpegversion = (int) 1, "
-        "mpegaudioversion = (int) [ 1, 3 ];")
+        "audio/mpeg, mpegversion = (int) 1; "
+        "audio/mpeg, mpegversion = (int) { 2, 4 }; ")
     );
 
 
@@ -243,24 +252,74 @@ gst_spdifdemux_init (GstSpdifDemux * spdifdemux)
 static gboolean
 gst_spdifdemux_map_type (GstSpdifDemux * spdif, GstIec937FormatType type)
 {
+  gint rate, channels;
+
   switch (type) {
     case IEC937_FORMAT_TYPE_AC3:
     {
-      spdif->type = GST_AUDIO_RING_BUFFER_FORMAT_TYPE_AC3;
       spdif->caps = gst_caps_new_empty_simple ("audio/x-ac3");
       break;
     }
     case IEC937_FORMAT_TYPE_EAC3:
     {
-      spdif->type = GST_AUDIO_RING_BUFFER_FORMAT_TYPE_EAC3;
-      spdif->caps = gst_caps_new_empty_simple ("audio/x-eac3");
+      spdif->caps =
+          gst_caps_new_simple ("audio/x-eac3", "alignment", G_TYPE_STRING,
+          "iec61937", NULL);
+      break;
+    }
+    case IEC937_FORMAT_TYPE_MPEG1L1:
+    {
+      spdif->caps =
+          gst_caps_new_simple ("audio/mpeg", "mpegversion", G_TYPE_INT, 1,
+          "mpegaudioversion", G_TYPE_INT, 1, "layer", G_TYPE_INT, 1, NULL);
+    }
+    case IEC937_FORMAT_TYPE_MPEG2L1:
+    {
+      spdif->caps =
+          gst_caps_new_simple ("audio/mpeg", "mpegversion", G_TYPE_INT, 1,
+          "mpegaudioversion", G_TYPE_INT, 2, "layer", G_TYPE_INT, 1, NULL);
+    }
+    case IEC937_FORMAT_TYPE_MPEG2L2:
+    {
+      spdif->caps =
+          gst_caps_new_simple ("audio/mpeg", "mpegversion", G_TYPE_INT, 1,
+          "mpegaudioversion", G_TYPE_INT, 2, "layer", G_TYPE_INT, 2, NULL);
+    }
+    case IEC937_FORMAT_TYPE_MPEG2:
+    case IEC937_FORMAT_TYPE_MPEG1L23:
+    case IEC937_FORMAT_TYPE_MPEG2L3:
+    {
+      spdif->caps =
+          gst_caps_new_simple ("audio/mpeg", "mpegversion", G_TYPE_INT, 1,
+          "mpegaudioversion", G_TYPE_INT, 2, "layer", G_TYPE_INT, 3, NULL);
+    }
+      break;
+    case IEC937_FORMAT_TYPE_MPEG2_4_AAC:
+    case IEC937_FORMAT_TYPE_MPEG2_4_AAC_2:
+    case IEC937_FORMAT_TYPE_MPEG2_4_AAC_3:
+    {
+      spdif->caps =
+          gst_caps_new_simple ("audio/mpeg", "mpegversion", G_TYPE_INT, 2,
+          "stream-format", G_TYPE_STRING, "adts", NULL);
       break;
     }
     default:
+      GST_ERROR_OBJECT (spdif, "Unkonw format!!!");
       return FALSE;
   }
 
-  GST_DEBUG_OBJECT (spdif, "iec937 type: %d", type);
+  gst_caps_set_simple (spdif->caps, "channels", G_TYPE_INT,
+      spdif->spec.info.channels, "rate", G_TYPE_INT, spdif->spec.info.rate,
+      NULL);
+
+  GST_DEBUG_OBJECT (spdif, "sink caps %" GST_PTR_FORMAT, spdif->caps);
+  spdif->spec_out.latency_time = GST_SECOND;
+  if (!gst_audio_ring_buffer_parse_caps (&spdif->spec_out, spdif->caps)) {
+    GST_ERROR_OBJECT (spdif, "failed to get structure from caps");
+    return FALSE;
+  }
+
+  GST_DEBUG_OBJECT (spdif, "sink caps %" GST_PTR_FORMAT, spdif->caps);
 
   return TRUE;
 }
@@ -512,7 +571,11 @@ gst_spdifdemux_get_stream_len (GstSpdifDemux * spdif, GstBuffer * buf)
   /* Pd: bit 15-0  - frame size in bits */
 
   gst_buffer_map (buf, &map, GST_MAP_READ);
-  stream_len = GST_READ_UINT16_LE (map.data + 6) >> 3;
+  /* EAC3 is frame size in bytes */
+  if (spdif->spec_out.type == GST_AUDIO_RING_BUFFER_FORMAT_TYPE_EAC3)
+    stream_len = GST_READ_UINT16_LE (map.data + 6);
+  else
+    stream_len = GST_READ_UINT16_LE (map.data + 6) >> 3;
   gst_buffer_unmap (buf, &map);
 
   GST_DEBUG_OBJECT (spdif, "iec937 stream size: %d", stream_len);
@@ -541,7 +604,6 @@ gst_spdifdemux_stream_data (GstSpdifDemux * spdif, gboolean flushing)
   GstBuffer *buf = NULL;
   GstFlowReturn res = GST_FLOW_OK;
   GstClockTime timestamp, next_timestamp, duration;
-  GstAudioRingBufferSpec spec;
   guint64 pos, nextpos;
   guint obtained, framesize, stream_size;
 
@@ -555,8 +617,7 @@ iterate_adapter:
     }
   }
 
-  spec.type = spdif->type;
-  framesize = gst_audio_iec61937_frame_size (&spec);
+  framesize = gst_audio_iec61937_frame_size (&spdif->spec_out);
 
   GST_DEBUG_OBJECT (spdif, "iec937 frame size: %d position: %lld", framesize,
       spdif->offset);
@@ -869,6 +930,7 @@ gst_spdifdemux_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
       //if (!gst_caps_is_fixed (caps))
       //goto done;
 
+      GST_DEBUG_OBJECT (spdif, "sink caps %" GST_PTR_FORMAT, caps);
       spdif->spec.latency_time = GST_SECOND;
       if (!gst_audio_ring_buffer_parse_caps (&spdif->spec, caps))
         goto done;
