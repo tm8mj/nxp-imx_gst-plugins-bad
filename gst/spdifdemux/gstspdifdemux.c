@@ -170,7 +170,7 @@ gst_spdifdemux_class_init (GstSpdifDemuxClass * klass)
       &src_template_factory);
 
   gst_element_class_set_static_metadata (gstelement_class, "SPDIF demuxer",
-      "Codec/Demuxer/Audio",
+      "Parser/Audio",
       "Parse a iec937 file into compressed audio",
       "Bing Song <bing.song@nxp.com>");
 }
