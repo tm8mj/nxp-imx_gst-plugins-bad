@@ -53,6 +53,9 @@
 #include <gst/wayland/wayland.h>
 #include <gst/video/videooverlay.h>
 
+#ifdef HAVE_DMABUFHEAPS_ALLOCATOR
+#include <gst/allocators/gstdmabufheaps.h>
+#endif
 #ifdef HAVE_ION_ALLOCATOR
 #include <gst/allocators/gstionmemory.h>
 #endif
@@ -637,13 +640,18 @@ gst_wayland_create_pool (GstWaylandSink * sink, GstCaps * caps)
 
   pool = g_object_new (gst_wayland_pool_get_type (), NULL);
 
-#ifdef HAVE_ION_ALLOCATOR
   GstVideoInfo info;
   gst_video_info_from_caps (&info, caps);
   GstVideoFormat format = GST_VIDEO_INFO_FORMAT (&info);
-  if (gst_wl_display_check_format_for_dmabuf (sink->display, format))
-    alloc = gst_ion_allocator_obtain ();
+  if (gst_wl_display_check_format_for_dmabuf (sink->display, format)) {
+#ifdef HAVE_DMABUFHEAPS_ALLOCATOR
+    alloc = gst_dmabufheaps_allocator_obtain ();
 #endif
+#ifdef HAVE_ION_ALLOCATOR
+    if (!alloc)
+      alloc = gst_ion_allocator_obtain ();
+#endif
+  }
 
   structure = gst_buffer_pool_get_config (pool);
   gst_buffer_pool_config_set_params (structure, caps, size, 2, 0);
@@ -895,8 +903,9 @@ gst_wayland_sink_config_hdr10 (GstWaylandSink * sink, const GstCaps * caps)
         display_primaries[2].y);
     white_point = (guint) (minfo.white_point.x << 16 | minfo.white_point.y);
     mastering_display_luminance =
-        (guint) (((minfo.max_display_mastering_luminance / 10000) & 0xffff) << 16 
-                | (minfo.min_display_mastering_luminance & 0xffff));
+        (guint) (((minfo.max_display_mastering_luminance /
+                10000) & 0xffff) << 16 | (minfo.min_display_mastering_luminance
+            & 0xffff));
     max_cll = cll.max_content_light_level;
     max_fall = cll.max_frame_average_light_level;
   }
