@@ -4127,6 +4127,23 @@ gst_player_set_visualization_enabled (GstPlayer * self, gboolean enabled)
       enabled ? "Enabled" : "Disabled");
 }
 
+/**
+ * gst_player_set_connection_speed:
+ * @player: #GstPlayer instance
+ * @connnection_speed: adaptive playback connection speed in kbps
+ *
+ * set adaptive playback connection speed.
+ */
+gboolean
+gst_player_set_connection_speed (GstPlayer * self, guint connnection_speed)
+{
+  g_return_val_if_fail (GST_IS_PLAYER (self), 0);
+
+  g_object_set (G_OBJECT (self->playbin), "connection-speed", connnection_speed,
+      NULL);
+  return TRUE;
+}
+
 struct CBChannelMap
 {
   const gchar *label;           /* channel label name */
