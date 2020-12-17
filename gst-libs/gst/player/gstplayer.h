@@ -196,6 +196,10 @@ gboolean     gst_player_set_subtitle_track            (GstPlayer    *player,
                                                        gint stream_index);
 
 GST_PLAYER_API
+gboolean     gst_player_set_connection_speed          (GstPlayer    *player,
+                                                       guint connnection_speed);
+
+GST_PLAYER_API
 GstPlayerMediaInfo *    gst_player_get_media_info     (GstPlayer * player);
 
 GST_PLAYER_API
