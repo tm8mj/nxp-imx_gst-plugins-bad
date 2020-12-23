@@ -130,6 +130,22 @@ done:
   return codec_name;
 }
 
+GstStreamType
+gst_mpd_helper_mimetype_to_stream_type (const gchar * mimeType)
+{
+  if (mimeType == NULL)
+    return GST_STREAM_TYPE_UNKNOWN;
+  if (strcmp (mimeType, "video/mp2t") == 0) {
+    return GST_STREAM_TYPE_VIDEO;
+  } else if (strcmp (mimeType, "video/mp4") == 0) {
+    return GST_STREAM_TYPE_VIDEO;
+  } else if (strcmp (mimeType, "audio/mp4") == 0) {
+    return GST_STREAM_TYPE_AUDIO;
+  } else if (strcmp (mimeType, "text/vtt") == 0) {
+    return GST_STREAM_TYPE_TEXT;
+  } else
+    return GST_STREAM_TYPE_UNKNOWN;
+}
 
 const gchar *
 gst_mpd_helper_mimetype_to_caps (const gchar * mimeType)
