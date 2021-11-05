@@ -640,7 +640,7 @@ gst_wl_window_resize_video_surface (GstWlWindow * window, gboolean commit)
   if (window->video_viewport) {
     gst_video_sink_center_rect (src, dst, &res, TRUE);
     wp_viewport_set_destination (window->video_viewport, res.w, res.h);
-    if (src_width != wl_fixed_from_int (-1))
+    if (src_width != wl_fixed_from_int (-1 / window->scale))
       wp_viewport_set_source (window->video_viewport,
           src_x, src_y, src_width, src_height);
   } else {
