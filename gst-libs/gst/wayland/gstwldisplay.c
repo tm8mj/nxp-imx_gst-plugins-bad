@@ -424,7 +424,7 @@ registry_handle_global (void *data, struct wl_registry *registry,
   } else if (g_strcmp0 (interface, "zwp_linux_dmabuf_v1") == 0) {
     priv->dmabuf =
         wl_registry_bind (registry, id, &zwp_linux_dmabuf_v1_interface,
-        version);
+        MIN (version, 3));
     zwp_linux_dmabuf_v1_add_listener (priv->dmabuf, &dmabuf_listener, self);
   } else if (g_strcmp0 (interface, "zwp_alpha_compositing_v1") == 0) {
     priv->alpha_compositing =
