@@ -397,6 +397,8 @@ gst_wl_display_thread_run (gpointer data)
 {
   GstWlDisplay *self = data;
   GstPollFD pollfd = GST_POLL_FD_INIT;
+  gint err;
+  gboolean normal = FALSE;
 
   pollfd.fd = wl_display_get_fd (self->display);
   gst_poll_add_fd (self->wl_fd_poll, &pollfd);
@@ -409,10 +411,13 @@ gst_wl_display_thread_run (gpointer data)
     wl_display_flush (self->display);
 
     if (gst_poll_wait (self->wl_fd_poll, GST_CLOCK_TIME_NONE) < 0) {
-      gboolean normal = (errno == EBUSY);
+      err = errno;
+      normal = (err == EBUSY);
       wl_display_cancel_read (self->display);
       if (normal)
         break;
+      else if (err == EINTR)
+        continue;
       else
         goto error;
     }
