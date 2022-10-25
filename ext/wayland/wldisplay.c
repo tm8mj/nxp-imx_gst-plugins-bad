@@ -49,6 +49,7 @@ gst_wl_display_init (GstWlDisplay * self)
   self->dmabuf_modifiers = g_hash_table_new_full (g_direct_hash, g_direct_equal,
       NULL, (GDestroyNotify) g_array_unref);
   self->dmabuf_formats = g_array_new (FALSE, FALSE, sizeof (uint32_t));
+  self->outputs = g_array_new (FALSE, FALSE, sizeof (struct wl_output *));
   self->wl_fd_poll = gst_poll_new (TRUE);
   self->buffers = g_hash_table_new (g_direct_hash, g_direct_equal);
   self->width = -1;
@@ -67,6 +68,8 @@ gst_wl_ref_wl_buffer (gpointer key, gpointer value, gpointer user_data)
 static void
 gst_wl_display_finalize (GObject * gobject)
 {
+  guint i;
+  struct wl_output *output = NULL;
   GstWlDisplay *self = GST_WL_DISPLAY (gobject);
 
   gst_poll_set_flushing (self->wl_fd_poll, TRUE);
@@ -85,6 +88,7 @@ gst_wl_display_finalize (GObject * gobject)
   g_hash_table_remove_all (self->buffers);
 
   g_hash_table_remove_all (self->dmabuf_modifiers);
+  g_hash_table_unref (self->dmabuf_modifiers);
   g_array_unref (self->dmabuf_formats);
 
   g_array_unref (self->shm_formats);
@@ -107,6 +111,15 @@ gst_wl_display_finalize (GObject * gobject)
   if (self->xdg_wm_base)
     xdg_wm_base_destroy (self->xdg_wm_base);
 
+  if (self->seat)
+    wl_seat_destroy (self->seat);
+
+  if (self->pointer)
+    wl_pointer_destroy (self->pointer);
+
+  if (self->touch)
+    wl_touch_destroy (self->touch);
+
   if (self->fullscreen_shell)
     zwp_fullscreen_shell_v1_release (self->fullscreen_shell);
 
@@ -124,6 +137,15 @@ gst_wl_display_finalize (GObject * gobject)
 
   if (self->hdr10_metadata)
     zwp_hdr10_metadata_v1_destroy (self->hdr10_metadata);
+
+  if (self->outputs) {
+    for (i = 0; i < self->outputs->len; i++) {
+      output = g_array_index (self->outputs, struct wl_output *, i);
+      if (output)
+        wl_output_destroy (output);
+    }
+    g_array_unref (self->outputs);
+  }
 
   if (self->registry)
     wl_registry_destroy (self->registry);
@@ -374,9 +396,11 @@ registry_handle_global (void *data, struct wl_registry *registry,
     self->hdr10_metadata =
         wl_registry_bind (registry, id, &zwp_hdr10_metadata_v1_interface, 1);
   } else if (g_strcmp0 (interface, "wl_output") == 0) {
-    self->output =
+    struct wl_output *output;
+    output =
         wl_registry_bind (registry, id, &wl_output_interface, MIN (version, 2));
-    wl_output_add_listener (self->output, &output_listener, self);
+    wl_output_add_listener (output, &output_listener, self);
+    g_array_append_val (self->outputs, output);
   }
 }
 
