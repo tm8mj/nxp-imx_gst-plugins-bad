@@ -54,7 +54,6 @@ typedef struct _GstWlDisplayPrivate
   struct wl_touch *touch;
   struct zwp_fullscreen_shell_v1 *fullscreen_shell;
   struct wl_shm *shm;
-  struct wl_output *output;
   struct wp_viewporter *viewporter;
   struct zwp_linux_dmabuf_v1 *dmabuf;
   struct zwp_alpha_compositing_v1 *alpha_compositing;
@@ -62,6 +61,7 @@ typedef struct _GstWlDisplayPrivate
   struct zwp_hdr10_metadata_v1 *hdr10_metadata;
   GArray *shm_formats;
   GArray *dmabuf_formats;
+  GArray *outputs;
   GHashTable *dmabuf_modifiers;
 
   /* real display resolution */
@@ -104,6 +104,7 @@ gst_wl_display_init (GstWlDisplay * self)
   priv->dmabuf_modifiers = g_hash_table_new_full (g_direct_hash, g_direct_equal,
       NULL, (GDestroyNotify) g_array_unref);
   priv->dmabuf_formats = g_array_new (FALSE, FALSE, sizeof (uint32_t));
+  priv->outputs = g_array_new (FALSE, FALSE, sizeof (struct wl_output *));
   priv->wl_fd_poll = gst_poll_new (TRUE);
   priv->buffers = g_hash_table_new (g_direct_hash, g_direct_equal);
   priv->width = -1;
@@ -126,6 +127,8 @@ gst_wl_ref_wl_buffer (gpointer key, gpointer value, gpointer user_data)
 static void
 gst_wl_display_finalize (GObject * gobject)
 {
+  guint i;
+  struct wl_output *output = NULL;
   GstWlDisplay *self = GST_WL_DISPLAY (gobject);
   GstWlDisplayPrivate *priv = gst_wl_display_get_instance_private (self);
 
@@ -145,6 +148,7 @@ gst_wl_display_finalize (GObject * gobject)
   g_hash_table_remove_all (priv->buffers);
 
   g_hash_table_remove_all (priv->dmabuf_modifiers);
+  g_hash_table_unref (priv->dmabuf_modifiers);
   g_array_unref (priv->dmabuf_formats);
 
   g_array_unref (priv->shm_formats);
@@ -164,6 +168,15 @@ gst_wl_display_finalize (GObject * gobject)
   if (priv->xdg_wm_base)
     xdg_wm_base_destroy (priv->xdg_wm_base);
 
+  if (priv->seat)
+    wl_seat_destroy (priv->seat);
+
+  if (priv->pointer)
+    wl_pointer_destroy (priv->pointer);
+
+  if (priv->touch)
+    wl_touch_destroy (priv->touch);
+
   if (priv->fullscreen_shell)
     zwp_fullscreen_shell_v1_release (priv->fullscreen_shell);
 
@@ -181,6 +194,15 @@ gst_wl_display_finalize (GObject * gobject)
 
   if (priv->hdr10_metadata)
     zwp_hdr10_metadata_v1_destroy (priv->hdr10_metadata);
+
+  if (priv->outputs) {
+    for (i = 0; i < priv->outputs->len; i++) {
+      output = g_array_index (priv->outputs, struct wl_output *, i);
+      if (output)
+        wl_output_destroy (output);
+    }
+    g_array_unref (priv->outputs);
+  }
 
   if (priv->registry)
     wl_registry_destroy (priv->registry);
@@ -433,9 +455,11 @@ registry_handle_global (void *data, struct wl_registry *registry,
     priv->hdr10_metadata =
         wl_registry_bind (registry, id, &zwp_hdr10_metadata_v1_interface, 1);
   } else if (g_strcmp0 (interface, "wl_output") == 0) {
-    priv->output =
+    struct wl_output *output;
+    output =
 	wl_registry_bind (registry, id, &wl_output_interface, MIN (version, 2));
-    wl_output_add_listener (priv->output, &output_listener, self);
+    wl_output_add_listener (output, &output_listener, self);
+    g_array_append_val (priv->outputs, output);
   }
 }
 
