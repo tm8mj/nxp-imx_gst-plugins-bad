@@ -2399,9 +2399,10 @@ gst_play_media_info_create (GstPlay * self)
     gst_query_parse_seeking (query, NULL, &media_info->seekable, NULL, NULL);
   gst_query_unref (query);
 
-  if (self->use_playbin3 && self->collection) {
-    gst_play_streams_info_create_from_collection (self, media_info,
-        self->collection);
+  if (self->use_playbin3) {
+    if (self->collection)
+      gst_play_streams_info_create_from_collection (self, media_info,
+          self->collection);
   } else {
     /* create audio/video/sub streams */
     gst_play_streams_info_create (self, media_info, "n-video",
