@@ -3344,9 +3344,6 @@ gst_h264_parse_pre_push_frame (GstBaseParse * parse, GstBaseParseFrame * frame)
           gst_util_uint64_scale_int (tim->n_frames, 1,
           2 - tim->nuit_field_based_flag);
 
-      if (!GST_IS_BUFFER (buffer))
-        buffer = frame->out_buffer;
-
       GST_LOG_OBJECT (h264parse,
           "Add time code meta %02u:%02u:%02u:%02u",
           tim->hours_value, tim->minutes_value, tim->seconds_value, n_frames);
