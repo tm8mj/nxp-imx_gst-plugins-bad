@@ -269,6 +269,11 @@ gst_wl_buffer_force_release_and_unref (GstBuffer * buf, GstWlBuffer * self)
   priv->display = NULL;
   priv->current_gstbuffer = NULL;
 
+  /* destroy buffer_release object attacted before wl queue release */
+  if (priv->buffer_release) {
+    zwp_linux_buffer_release_v1_destroy (priv->buffer_release);
+  }
+
   /* remove the reference that the caller (GstWlDisplay) owns */
   g_object_unref (self);
 }
