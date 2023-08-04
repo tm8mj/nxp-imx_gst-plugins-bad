@@ -4,6 +4,6 @@ Outgoing License:            LGPL-2.1
 License File:                LICENSE.txt
 Type of Content:             source
 Description and comments:    Gstreamer plug-ins that aren't up to par compared to the rest. Close to good quality but missing something.
-Release Location:            https://github.com/nxp-imx/gst-plugins-bad -b lf-6.1.22-2.0.0
+Release Location:            https://github.com/nxp-imx/gst-plugins-bad -b lf-6.1.36-2.1.0
 Origin:                      NXP (LGPL-2.1)
                              Gstreamer plugins-Bad (LGPL-2.1+) - http://gstreamer.freedesktop.org/src/gst-plugins-bad/
