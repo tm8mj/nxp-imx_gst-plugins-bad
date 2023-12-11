@@ -822,19 +822,19 @@ gst_wl_window_render (GstWlWindow * self, GstWlBuffer * buffer,
     gst_wl_window_set_opaque (self, info);
   }
 
-  current_gstbuffer = gst_wl_buffer_get_current_gstbuffer (buffer);
-  used_by_compositor = gst_wl_buffer_get_used_by_compositor (buffer);
-  if (buffer && !used_by_compositor && priv->surface_sync) {
-    GST_DEBUG ("use explicit sync create buffer release (GstBuffer: %p)",
-        current_gstbuffer);
-    gst_wl_buffer_set_buffer_release (buffer,
-        zwp_linux_surface_synchronization_v1_get_release (priv->surface_sync));
-    buffer_release = gst_wl_buffer_get_buffer_release (buffer);
-    zwp_linux_buffer_release_v1_add_listener (buffer_release,
-        &buffer_release_listener, buffer);
-  }
-
   if (G_LIKELY (buffer)) {
+    current_gstbuffer = gst_wl_buffer_get_current_gstbuffer (buffer);
+    used_by_compositor = gst_wl_buffer_get_used_by_compositor (buffer);
+    if (!used_by_compositor && priv->surface_sync) {
+      GST_DEBUG ("use explicit sync create buffer release (GstBuffer: %p)",
+        current_gstbuffer);
+      gst_wl_buffer_set_buffer_release (buffer,
+          zwp_linux_surface_synchronization_v1_get_release (priv->surface_sync));
+      buffer_release = gst_wl_buffer_get_buffer_release (buffer);
+      zwp_linux_buffer_release_v1_add_listener (buffer_release,
+          &buffer_release_listener, buffer);
+    }
+
     gst_wl_buffer_attach (buffer, priv->video_surface_wrapper);
     wl_surface_set_buffer_scale (priv->video_surface_wrapper, priv->scale);
     wl_surface_damage_buffer (priv->video_surface_wrapper, 0, 0, G_MAXINT32,
