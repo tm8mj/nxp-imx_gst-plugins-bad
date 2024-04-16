@@ -919,8 +919,25 @@ gst_wayland_sink_propose_allocation (GstBaseSink * bsink, GstQuery * query)
   gboolean need_pool;
   GstAllocator *alloc = NULL;
   guint64 drm_modifier;
+  GstVideoInfoDmaDrm drm_info;
+  GstVideoInfo vinfo;
+  guint size;
 
   gst_query_parse_allocation (query, &caps, &need_pool);
+
+  if (caps == NULL)
+    return FALSE;
+
+  if (gst_video_is_dma_drm_caps (caps)) {
+    if (!gst_video_info_dma_drm_from_caps (&drm_info, caps))
+      return FALSE;
+    size = drm_info.vinfo.size;
+  } else {
+    /* extract info from caps */
+    if (!gst_video_info_from_caps (&vinfo, caps))
+      return FALSE;
+    size = vinfo.size;
+  }
 
   drm_modifier = DRM_FORMAT_MOD_AMPHION_TILED;
   gst_query_add_allocation_dmabuf_meta (query, drm_modifier);
@@ -966,8 +983,7 @@ gst_wayland_sink_propose_allocation (GstBaseSink * bsink, GstQuery * query)
       gst_buffer_pool_config_set_video_alignment (config, &alignment);
     }
 
-    gst_buffer_pool_config_set_params (config,
-        caps, self->video_info.size, 2, 0);
+    gst_buffer_pool_config_set_params (config, caps, size, 2, 0);
     gst_buffer_pool_config_set_allocator (config,
         alloc, NULL);
     gst_buffer_pool_config_add_option (config,
@@ -975,7 +991,7 @@ gst_wayland_sink_propose_allocation (GstBaseSink * bsink, GstQuery * query)
     gst_buffer_pool_set_config (pool, config);
   }
 
-  gst_query_add_allocation_pool (query, pool, self->video_info.size, 2, 0);
+  gst_query_add_allocation_pool (query, pool, size, 2, 0);
   if (pool)
     g_object_unref (pool);
 
