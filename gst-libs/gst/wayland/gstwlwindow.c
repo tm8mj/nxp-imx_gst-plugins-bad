@@ -271,9 +271,7 @@ handle_xdg_toplevel_configure (void *data, struct xdg_toplevel *xdg_toplevel,
   if (width <= 2 * RESIZE_MARGIN || height <= 2 * RESIZE_MARGIN)
     return;
 
-  g_mutex_lock (priv->render_lock);
   gst_wl_window_set_render_rectangle (self, 0, 0, width, height);
-  g_mutex_unlock (priv->render_lock);
 }
 
 static const struct xdg_toplevel_listener xdg_toplevel_listener = {
