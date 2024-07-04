@@ -252,7 +252,6 @@ handle_xdg_toplevel_configure (void *data, struct xdg_toplevel *xdg_toplevel,
     int32_t width, int32_t height, struct wl_array *states)
 {
   GstWlWindow *self = data;
-  GstWlWindowPrivate *priv = gst_wl_window_get_instance_private (self);
   const uint32_t *state;
 
   GST_DEBUG ("XDG toplevel got a \"configure\" event, [ %d, %d ].",
